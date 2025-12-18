@@ -25,4 +25,4 @@ ENV TAU2_SERVER_URL=http://localhost:8002
 
 # Start environment server in background, then run MCP server
 # CRITICAL: Environment server logs MUST go to stderr, not stdout (MCP uses stdout for JSONRPC)
-CMD sh -c "python -m environment.run_server --domain ${DOMAIN} --host 0.0.0.0 --port ${TAU2_SERVER_PORT} >&2 & sleep 3 && python -m server.main"
+CMD ["sh", "-c", "python -m environment.run_server --domain ${DOMAIN} --host 0.0.0.0 --port ${TAU2_SERVER_PORT} >&2 & sleep 3 && python -m server.main"]
