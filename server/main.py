@@ -49,32 +49,6 @@ async def init():
         logger.error(f"Failed to initialize HTTP tools: {e}")
         logger.warning("MCP server will start without domain tools. Start environment server first.")
 
-    # Auto-initialize environment with default task (if not already initialized)
-    # This allows HUD v5.0 to work without requiring manual setup/load call
-    from .setup.load import load
-    from .state import get_tau2_task
-
-    tau2_task = get_tau2_task()
-    if not tau2_task.is_initialized():
-        domain = os.getenv("DOMAIN", "airline")
-        task_id = int(os.getenv("TASK_ID", "0"))
-        task_split = os.getenv("TASK_SPLIT", "dev")
-
-        logger.info(f"Auto-initializing environment: domain={domain}, task_id={task_id}, split={task_split}")
-
-        result = await load(
-            domain=domain,
-            task_id=task_id,
-            task_split=task_split,
-            solo_mode=False,
-            start_conversation=False
-        )
-
-        if "error" in result:
-            logger.error(f"Auto-initialization failed: {result['error']}")
-        else:
-            logger.info("Auto-initialization successful")
-
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
