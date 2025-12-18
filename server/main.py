@@ -31,6 +31,7 @@ async def init():
     # Register conversation tool for multi-turn mode
     from .tools.conversation import create_conversation_tool
     _conversation_tool = create_conversation_tool()
+    # Register the tool object (callable), not its FunctionTool wrapper.
     mcp.add_tool(_conversation_tool)
 
     # Load HTTP-based tools from environment server
@@ -39,7 +40,7 @@ async def init():
     try:
         http_tools = create_http_tools_from_server()
 
-        # Register all HTTP-based domain tools
+        # Register all HTTP-based domain tools (callables)
         for tool_name, http_tool in http_tools.items():
             mcp.add_tool(http_tool)
 
@@ -47,6 +48,32 @@ async def init():
     except RuntimeError as e:
         logger.error(f"Failed to initialize HTTP tools: {e}")
         logger.warning("MCP server will start without domain tools. Start environment server first.")
+
+    # Auto-initialize environment with default task (if not already initialized)
+    # This allows HUD v5.0 to work without requiring manual setup/load call
+    from .setup.load import load
+    from .state import get_tau2_task
+
+    tau2_task = get_tau2_task()
+    if not tau2_task.is_initialized():
+        domain = os.getenv("DOMAIN", "airline")
+        task_id = int(os.getenv("TASK_ID", "0"))
+        task_split = os.getenv("TASK_SPLIT", "dev")
+
+        logger.info(f"Auto-initializing environment: domain={domain}, task_id={task_id}, split={task_split}")
+
+        result = await load(
+            domain=domain,
+            task_id=task_id,
+            task_split=task_split,
+            solo_mode=False,
+            start_conversation=False
+        )
+
+        if "error" in result:
+            logger.error(f"Auto-initialization failed: {result['error']}")
+        else:
+            logger.info("Auto-initialization successful")
 
 
 if __name__ == "__main__":

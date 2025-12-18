@@ -267,12 +267,12 @@ The response will be the direct output of the tool execution.
                 if initialization_data:
                     # Apply agent data
                     if "agent_data" in initialization_data and initialization_data["agent_data"]:
-                        self.environment.toolkit.update_db(initialization_data["agent_data"])
+                        self.environment.tools.update_db(initialization_data["agent_data"])
 
                     # Apply user data
                     if "user_data" in initialization_data and initialization_data["user_data"]:
-                        if self.environment.user_toolkit:
-                            self.environment.user_toolkit.update_db(initialization_data["user_data"])
+                        if self.environment.user_tools:
+                            self.environment.user_tools.update_db(initialization_data["user_data"])
 
                 # Execute initialization actions
                 if initialization_actions:

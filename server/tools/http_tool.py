@@ -37,8 +37,8 @@ class HTTPTool(BaseTool):
         self.tool_schema = tool_schema
         self._http_client = None
 
-        # Create a signature with no **kwargs to satisfy FastMCP
-        # FastMCP will use the JSON schema we provide via .parameters property
+        # Create a fake signature to satisfy FastMCP's **kwargs check
+        # The actual parameters come from tool_schema
         import inspect
         self.__signature__ = inspect.Signature([])
 
@@ -111,25 +111,16 @@ class HTTPTool(BaseTool):
             logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
+    # Don't override mcp - use BaseTool's default implementation
+    # But we need to override parameters after the FunctionTool is created
     @property
     def mcp(self):
-        """Override mcp property to provide proper parameter schema."""
-        if not hasattr(self, "_mcp_tool"):
-            from fastmcp.tools import FunctionTool
-
-            # Create tool from this callable object
-            self._mcp_tool = FunctionTool.from_function(
-                self,
-                name=self.name,
-                title=self.title,
-                description=self.description,
-                meta=self.meta,
-            )
-
-            # Override the parameters with the schema from environment server
-            self._mcp_tool.parameters = self.tool_schema
-
-        return self._mcp_tool
+        """Get FunctionTool with custom parameter schema from environment server."""
+        # Use parent's mcp creation
+        mcp_tool = super().mcp
+        # Override parameters with schema from environment server
+        mcp_tool.parameters = self.tool_schema
+        return mcp_tool
 
 
 class HTTPUserTool(BaseTool):
@@ -154,8 +145,8 @@ class HTTPUserTool(BaseTool):
         self.tool_schema = tool_schema
         self._http_client = None
 
-        # Create a signature with no **kwargs to satisfy FastMCP
-        # FastMCP will use the JSON schema we provide via .parameters property
+        # Create a fake signature to satisfy FastMCP's **kwargs check
+        # The actual parameters come from tool_schema
         import inspect
         self.__signature__ = inspect.Signature([])
 
@@ -192,25 +183,16 @@ class HTTPUserTool(BaseTool):
             logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
+    # Don't override mcp - use BaseTool's default implementation
+    # But we need to override parameters after the FunctionTool is created
     @property
     def mcp(self):
-        """Override mcp property to provide proper parameter schema."""
-        if not hasattr(self, "_mcp_tool"):
-            from fastmcp.tools import FunctionTool
-
-            # Create tool from this callable object
-            self._mcp_tool = FunctionTool.from_function(
-                self,
-                name=self.name,
-                title=self.title,
-                description=self.description,
-                meta=self.meta,
-            )
-
-            # Override the parameters with the schema from environment server
-            self._mcp_tool.parameters = self.tool_schema
-
-        return self._mcp_tool
+        """Get FunctionTool with custom parameter schema from environment server."""
+        # Use parent's mcp creation
+        mcp_tool = super().mcp
+        # Override parameters with schema from environment server
+        mcp_tool.parameters = self.tool_schema
+        return mcp_tool
 
 
 def create_http_tools_from_server():
