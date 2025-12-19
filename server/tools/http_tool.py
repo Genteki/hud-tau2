@@ -71,43 +71,52 @@ class HTTPTool(BaseTool):
             # Get tau2_task for message logging
             from server.state import get_tau2_task
             from tau2.data_model.message import AssistantMessage, ToolMessage
+            from tau2.environment.environment import Environment
             from uuid import uuid4
-            import json
             from datetime import datetime
 
             tau2_task = get_tau2_task()
 
             # Create tool call object (following tau2-bench ToolCall structure)
-            tool_call_id = str(uuid4())
-            tool_call_dict = {
-                "id": tool_call_id,
-                "name": self.name,
-                "arguments": kwargs
-            }
+            from tau2.data_model.message import ToolCall
+            tool_call = ToolCall(
+                id=str(uuid4()),
+                name=self.name,
+                arguments=kwargs,
+                requestor="assistant",
+            )
 
             # Log AssistantMessage with tool call (agent calling the tool)
-            # Note: In tau2-bench, agent messages with tool_calls have content=None
             assistant_msg = AssistantMessage(
                 role="assistant",
-                content=None,
-                tool_calls=[tool_call_dict],
-                cost=0.0,  # TODO: Track actual LLM cost if agent made decision
-                timestamp=datetime.now().isoformat()
+                tool_calls=[tool_call],
+                cost=0.0,
             )
             tau2_task.add_message(assistant_msg)
 
             # Execute tool via HTTP
-            result = self.http_client.execute_tool(self.name, **kwargs)
+            error = False
+            try:
+                result = self.http_client.execute_tool(self.name, **kwargs)
+                # Server already applied Environment.to_json_str, just serialize to JSON string
+                import json
+                if isinstance(result, str):
+                    # String results don't need further serialization
+                    result_str = result
+                else:
+                    # Dict/list results need JSON encoding
+                    result_str = json.dumps(result, ensure_ascii=False)
+            except Exception as e:
+                result_str = f"Error: {e}"
+                error = True
 
-            # Format result
-            result_str = json.dumps(result, indent=2, ensure_ascii=False)
-
-            # Log ToolMessage (environment response)
+            # Log ToolMessage (environment response) - matches reference implementation
             tool_msg = ToolMessage(
-                id=tool_call_id,
+                id=tool_call.id,
                 role="tool",
                 content=result_str,
-                timestamp=datetime.now().isoformat()
+                requestor=tool_call.requestor,
+                error=error,
             )
             tau2_task.add_message(tool_msg)
 

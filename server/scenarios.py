@@ -11,7 +11,7 @@ def register_tau2_scenarios(env):
     @env.scenario("tau2")
     async def tau2_scenario(
         domain: str = "airline",
-        task_id: int = 0,
+        task_id: int | str = 0,
         task_split: str = "base"
     ) -> Any:
         """
@@ -19,7 +19,7 @@ def register_tau2_scenarios(env):
 
         Args:
             domain: Domain to test (airline, retail, telecom)
-            task_id: Task ID within the domain
+            task_id: Task ID within the domain (int for airline/retail, str for telecom)
             task_split: Task split (base, dev, test)
 
         Returns:
@@ -160,7 +160,49 @@ Use the send_message tool to respond to the customer.
             )
 
             reward = float(reward_info.reward)
-            logger.info(f"Evaluation complete: reward={reward}")
+
+            # Log detailed evaluation summary
+            logger.info("=" * 60)
+            logger.info("EVALUATION SUMMARY")
+            logger.info("=" * 60)
+            logger.info(f"Final Reward: {reward}")
+
+            if reward_info.reward_breakdown:
+                logger.info("\nReward Breakdown:")
+                for reward_type, value in reward_info.reward_breakdown.items():
+                    logger.info(f"  {reward_type}: {value}")
+
+            if reward_info.db_check:
+                logger.info(f"\nDatabase Check: match={reward_info.db_check.db_match}, reward={reward_info.db_check.db_reward}")
+
+            if reward_info.env_assertions:
+                logger.info(f"\nEnvironment Assertions: {len(reward_info.env_assertions)} checks")
+                for i, check in enumerate(reward_info.env_assertions):
+                    logger.info(f"  [{i+1}] {check.env_assertion}: met={check.met}, reward={check.reward}")
+
+            if reward_info.action_checks:
+                logger.info(f"\nAction Checks: {len(reward_info.action_checks)} checks")
+                for i, check in enumerate(reward_info.action_checks):
+                    logger.info(f"  [{i+1}] {check.action}: match={check.action_match}, reward={check.action_reward}")
+
+            if reward_info.nl_assertions:
+                logger.info(f"\nNL Assertions: {len(reward_info.nl_assertions)} checks")
+                for i, check in enumerate(reward_info.nl_assertions):
+                    logger.info(f"  [{i+1}] {check.nl_assertion}: met={check.met}")
+                    if check.justification:
+                        logger.info(f"      Justification: {check.justification}")
+
+            if reward_info.communicate_checks:
+                logger.info(f"\nCommunication Checks: {len(reward_info.communicate_checks)} checks")
+                for i, check in enumerate(reward_info.communicate_checks):
+                    logger.info(f"  [{i+1}] {check.info}: met={check.met}")
+                    if check.justification:
+                        logger.info(f"      Justification: {check.justification}")
+
+            if reward_info.info:
+                logger.info(f"\nAdditional Info: {reward_info.info}")
+
+            logger.info("=" * 60)
 
         except Exception as e:
             logger.error(f"Evaluation failed: {e}")

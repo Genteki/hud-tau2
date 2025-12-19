@@ -265,14 +265,33 @@ The response will be the direct output of the tool execution.
             tool_args = {k: v for k, v in request.items() if k != "tool_name"}
 
             try:
+                from tau2.environment.environment import Environment
+                import json
+
                 # Try regular tools first
                 if self.environment.tools.has_tool(tool_name):
                     result = self.environment.use_tool(tool_name=tool_name, **tool_args)
-                    return {"result": result}
+                    # Serialize with Environment.to_json_str to preserve tau2 formatting
+                    result_str = Environment.to_json_str(result)
+                    # If result_str is already a JSON string, parse it; otherwise wrap it
+                    if isinstance(result, str):
+                        # String results are returned as-is by Environment.to_json_str
+                        return {"result": result_str}
+                    else:
+                        # Structured results are JSON-encoded, parse back to dict
+                        return {"result": json.loads(result_str)}
                 # Try user tools
                 elif self.environment.user_tools and self.environment.user_tools.has_tool(tool_name):
                     result = self.environment.use_user_tool(tool_name=tool_name, **tool_args)
-                    return {"result": result}
+                    # Serialize with Environment.to_json_str to preserve tau2 formatting
+                    result_str = Environment.to_json_str(result)
+                    # If result_str is already a JSON string, parse it; otherwise wrap it
+                    if isinstance(result, str):
+                        # String results are returned as-is by Environment.to_json_str
+                        return {"result": result_str}
+                    else:
+                        # Structured results are JSON-encoded, parse back to dict
+                        return {"result": json.loads(result_str)}
                 else:
                     raise HTTPException(
                         status_code=404,

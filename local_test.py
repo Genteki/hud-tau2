@@ -63,7 +63,7 @@ async def test_airline_scenario():
 
         while True:
             response = await client.chat.completions.create(
-                model="gpt-4o",  # https://hud.ai/models
+                model="gpt-5",  # https://hud.ai/models
                 messages=messages,
                 tools=ctx.as_openai_chat_tools(),
             )
@@ -89,8 +89,8 @@ async def test_retail_scenario():
     )
 
     async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-4o")  # https://hud.ai/models
-        await agent.run(ctx)
+        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/models
+        await agent.run(ctx, max_steps=30)
 
 
 async def test_telecom_scenario():
@@ -99,12 +99,12 @@ async def test_telecom_scenario():
 
     task = env("tau2",
         domain="telecom",
-        task_id="[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Easy]",
+        task_id="[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:None]",
         task_split="base"
     )
 
     async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="claude-sonnet-4-5")  # https://hud.ai/models
+        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/models
         await agent.run(ctx, max_steps=30)
 
 
