@@ -99,13 +99,13 @@ async def test_telecom_scenario():
 
     task = env("tau2",
         domain="telecom",
-        task_id=0,
+        task_id="[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_both_permissions|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_disabled_off[PERSONA:Easy]",
         task_split="base"
     )
 
     async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-4o")  # https://hud.ai/models
-        await agent.run(ctx)
+        agent = OpenAIChatAgent.create(model="claude-sonnet-4-5")  # https://hud.ai/models
+        await agent.run(ctx, max_steps=30)
 
 
 async def main():
@@ -118,9 +118,9 @@ async def main():
 
     await test_tools_standalone()
     # Uncomment to run scenarios:
-    await test_airline_scenario()
+    # await test_airline_scenario()
     # await test_retail_scenario()
-    # await test_telecom_scenario()
+    await test_telecom_scenario()
 
 
 if __name__ == "__main__":

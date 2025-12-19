@@ -34,6 +34,8 @@ class ConversationTool(BaseTool):
             return [TextContent(type="text", text="Error: Task not initialized.")]
 
         try:
+            logger.info(f"Agent message: {message}")
+
             # Log agent message locally
             agent_message = AssistantMessage(
                 role="assistant",
@@ -47,11 +49,23 @@ class ConversationTool(BaseTool):
             http_client = get_http_client()
             response = http_client.send_message(message)
 
+            # Log all components in the response
+            logger.info(f"Response keys: {list(response.keys())}")
+            logger.info(f"Full response: {response}")
+
             if "error" in response:
                 error_msg = response.get("error", "Unknown error")
+                logger.error(f"Conversation error: {error_msg}")
                 return [TextContent(type="text", text=f"Error: {error_msg}")]
 
             user_content = response.get("user_message", "")
+            logger.info(f"User response: {user_content}")
+
+            # Check for policy or system message in response
+            if "policy" in response:
+                logger.info(f"Policy found: {response['policy'][:100]}...")
+            if "system_message" in response:
+                logger.info(f"System message found: {response['system_message'][:100]}...")
 
             # Log user message locally
             user_message = UserMessage(

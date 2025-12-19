@@ -42,12 +42,15 @@ class EnvironmentHTTPClient:
         Raises:
             requests.HTTPError: If the tool execution fails
         """
-        url = f"{self.base_url}/tools/{tool_name}"
+        url = f"{self.base_url}/execute_tool"
+        payload = {"tool_name": tool_name, **kwargs}
 
         try:
-            response = self.session.post(url, json=kwargs)
+            response = self.session.post(url, json=payload)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            # The /execute_tool endpoint wraps result in {"result": ...}
+            return result.get("result", result)
         except requests.HTTPError as e:
             logger.error(f"Tool execution failed for '{tool_name}': {e}")
             if e.response is not None:
@@ -68,12 +71,16 @@ class EnvironmentHTTPClient:
         Raises:
             requests.HTTPError: If the tool execution fails
         """
-        url = f"{self.base_url}/user_tools/{tool_name}"
+        # Use the same /execute_tool endpoint (it handles both regular and user tools)
+        url = f"{self.base_url}/execute_tool"
+        payload = {"tool_name": tool_name, **kwargs}
 
         try:
-            response = self.session.post(url, json=kwargs)
+            response = self.session.post(url, json=payload)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            # The /execute_tool endpoint wraps result in {"result": ...}
+            return result.get("result", result)
         except requests.HTTPError as e:
             logger.error(f"User tool execution failed for '{tool_name}': {e}")
             if e.response is not None:

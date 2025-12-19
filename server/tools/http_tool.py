@@ -4,12 +4,20 @@ Wraps HTTP calls to the environment server as HUD MCP tools.
 """
 
 import logging
-from typing import Any
+from typing import Any, Dict
 from hud.tools.base import BaseTool
 from mcp.types import TextContent
 from server.tools.http_client import get_http_client
 
 logger = logging.getLogger(__name__)
+
+# Global registry of HTTP tools (for dynamic reloading per domain)
+_http_tool_registry: Dict[str, BaseTool] = {}
+
+
+def get_http_tool_registry() -> Dict[str, BaseTool]:
+    """Get the global HTTP tool registry."""
+    return _http_tool_registry
 
 
 class HTTPTool(BaseTool):
@@ -241,5 +249,9 @@ def create_http_tools_from_server():
         )
 
     logger.info(f"Created {len(http_tools)} HTTP-based MCP tools from environment server")
+
+    # Update global registry
+    global _http_tool_registry
+    _http_tool_registry.update(http_tools)
 
     return http_tools

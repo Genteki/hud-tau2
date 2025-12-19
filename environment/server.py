@@ -246,6 +246,43 @@ The response will be the direct output of the tool execution.
 
             return {"tools": tools_list}
 
+        @self.app.post("/execute_tool")
+        async def execute_tool(request: dict):
+            """
+            Generic tool execution endpoint that works across domain changes.
+
+            Args:
+                request: Dict with 'tool_name' and tool arguments
+
+            Returns:
+                Tool execution result
+            """
+            tool_name = request.get("tool_name")
+            if not tool_name:
+                raise HTTPException(status_code=400, detail="Missing 'tool_name' in request")
+
+            # Get tool arguments (everything except tool_name)
+            tool_args = {k: v for k, v in request.items() if k != "tool_name"}
+
+            try:
+                # Try regular tools first
+                if self.environment.tools.has_tool(tool_name):
+                    result = self.environment.use_tool(tool_name=tool_name, **tool_args)
+                    return {"result": result}
+                # Try user tools
+                elif self.environment.user_tools and self.environment.user_tools.has_tool(tool_name):
+                    result = self.environment.use_user_tool(tool_name=tool_name, **tool_args)
+                    return {"result": result}
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Tool '{tool_name}' not found in current domain '{self.environment.get_domain_name()}'"
+                    )
+            except Exception as e:
+                import traceback
+                logger.error(f"Tool execution error for '{tool_name}': {e}\n{traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=str(e))
+
         @self.app.get("/policy")
         async def get_policy():
             """Get the domain policy."""
@@ -358,16 +395,19 @@ The response will be the direct output of the tool execution.
                     # Execute initialization actions
                     if initialization_actions is not None:
                         for action in initialization_actions:
-                            if action.function_name:
+                            if action.func_name:
                                 # Execute the action on the appropriate toolkit
-                                if action.role == "agent":
-                                    getattr(self.environment.tools, action.function_name)(**action.kwargs)
-                                elif action.role == "user":
-                                    getattr(self.environment.user_tools, action.function_name)(**action.kwargs)
+                                if action.env_type == "agent":
+                                    getattr(self.environment.tools, action.func_name)(**action.arguments)
+                                elif action.env_type == "user":
+                                    getattr(self.environment.user_tools, action.func_name)(**action.arguments)
 
                 # 5. Get user's initial greeting
-                user_data = self.environment.user_tools.get_db() if self.environment.user_tools else {}
-                initial_greeting = user_data.get("greeting", "Hi! How can I help you today?")
+                if self.environment.user_tools and self.environment.user_tools.db:
+                    user_data = self.environment.user_tools.db.model_dump()
+                    initial_greeting = user_data.get("greeting", "Hi! How can I help you today?")
+                else:
+                    initial_greeting = "Hi! How can I help you today?"
 
                 return {
                     "status": "ready",
@@ -399,6 +439,7 @@ The response will be the direct output of the tool execution.
             from tau2.data_model.message import AssistantMessage
             from tau2.utils.utils import get_now
             import os
+            import json
 
             message = request.get("message", "")
 
@@ -418,7 +459,8 @@ The response will be the direct output of the tool execution.
                     # Get user tools if available
                     user_tools = None
                     if self.environment.user_tools:
-                        user_tools = self.environment.user_tools
+                        # Convert ToolKit to list of Tool objects
+                        user_tools = list(self.environment.user_tools.get_tools().values())
 
                     self._user_simulator = UserSimulator(
                         tools=user_tools,
@@ -447,18 +489,17 @@ The response will be the direct output of the tool execution.
                     tool_messages = []
                     for tool_call in user_message.tool_calls:
                         # Execute user tool
-                        tool_name = tool_call.function.name
-                        import json
-                        tool_args = json.loads(tool_call.function.arguments)
+                        tool_name = tool_call.name
+                        tool_args = tool_call.arguments
 
                         result = getattr(self.environment.user_tools, tool_name)(**tool_args)
 
                         from tau2.data_model.message import ToolMessage
                         tool_msg = ToolMessage(
+                            id=tool_call.id,
                             role="tool",
-                            tool_call_id=tool_call.id,
-                            name=tool_name,
                             content=json.dumps(result, ensure_ascii=False),
+                            requestor=tool_call.requestor,
                             timestamp=get_now()
                         )
                         tool_messages.append(tool_msg)

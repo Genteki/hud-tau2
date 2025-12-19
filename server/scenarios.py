@@ -61,6 +61,23 @@ def register_tau2_scenarios(env):
 
             logger.info(f"Scenario initialized: domain={domain}, task_id={task_id}, split={task_split}")
 
+            # Dynamically load tools for this domain from environment server
+            from server.tools.http_tool import create_http_tools_from_server, get_http_tool_registry
+            from env import env as hud_env
+
+            # Clear old domain tools from registry
+            tool_registry = get_http_tool_registry()
+            tool_registry.clear()
+
+            # Load new tools for current domain
+            http_tools = create_http_tools_from_server()
+
+            # Add tools to environment (this registers them with the MCP server)
+            for tool_name, http_tool in http_tools.items():
+                hud_env.add_tool(http_tool)
+
+            logger.info(f"Loaded {len(http_tools)} tools for domain '{domain}'")
+
         except Exception as e:
             logger.error(f"Setup failed: {e}")
             import traceback
@@ -70,10 +87,34 @@ def register_tau2_scenarios(env):
             return
 
         # ===== PROMPT (first yield) =====
-        # Provide the task prompt to the agent
-        prompt = f"""
-Greet to customer with tool `send_message` tool, with greeting intro:
+        # Provide the task prompt to the agent with policy (like original tau2-bench)
+        # Get policy from environment server
+        try:
+            policy = http_client.get_policy()
+        except Exception as e:
+            logger.warning(f"Could not get policy: {e}")
+            policy = "No specific policy available."
+
+        prompt = f"""You are a customer service agent for {domain}.
+
+<instructions>
+You are a customer service agent that helps the user according to the <policy> provided below.
+In each turn you can either:
+- Send a message to the user using the send_message tool.
+- Make a tool call to check or modify data.
+You cannot do both at the same time.
+
+Try to be helpful and always follow the policy.
+</instructions>
+
+<policy>
+{policy}
+</policy>
+
+The customer has sent you this message:
 {initial_greeting}
+
+Use the send_message tool to respond to the customer.
 """
 
         # Yield the prompt and let the agent interact

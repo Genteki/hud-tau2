@@ -57,20 +57,9 @@ async def init():
     _conversation_tool = create_conversation_tool()
     env.add_tool(_conversation_tool)
 
-    # Load HTTP-based tools from environment server
-    from server.tools.http_tool import create_http_tools_from_server
-
-    try:
-        http_tools = create_http_tools_from_server()
-
-        # Register all HTTP-based domain tools
-        for tool_name, http_tool in http_tools.items():
-            env.add_tool(http_tool)
-
-        logger.info(f"Initialized with {len(http_tools)} HTTP-based domain tools + send_message")
-    except RuntimeError as e:
-        logger.error(f"Failed to initialize HTTP tools: {e}")
-        logger.warning("Environment will start without domain tools. Start environment server first.")
+    # Don't load HTTP tools at initialization - they will be loaded dynamically
+    # when a scenario is set up (because the domain changes per scenario)
+    logger.info("Initialized tau2-bench - domain tools will be loaded per scenario")
 
 
 if __name__ == "__main__":
