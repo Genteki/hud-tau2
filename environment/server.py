@@ -299,6 +299,197 @@ The response will be the direct output of the tool execution.
                 logger.error(f"Environment reset failed: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
+        @self.app.post("/initialize_scenario")
+        async def initialize_scenario(request: dict):
+            """
+            Initialize a scenario: load task, reset environment, apply initial state.
+
+            Args:
+                request: Dict with domain, task_id, task_split
+
+            Returns:
+                Initial greeting and scenario info
+            """
+            from tau2.registry import registry
+
+            domain = request.get("domain")
+            task_id = str(request.get("task_id"))
+            task_split = request.get("task_split", "base")
+
+            try:
+                # 1. Load tasks for the domain
+                task_loader = registry.get_tasks_loader(domain)
+                tasks = task_loader(task_split_name=task_split)
+
+                # 2. Find the specific task
+                task = None
+                for t in tasks:
+                    if str(t.id) == task_id:
+                        task = t
+                        break
+
+                if task is None:
+                    return {
+                        "error": f"Task {task_id} not found",
+                        "available_tasks": [str(t.id) for t in tasks]
+                    }
+
+                # 3. Reset environment
+                env_constructor = registry.get_env_constructor(domain)
+                self.environment = env_constructor(solo_mode=False)
+
+                # Store task for user simulator
+                self._current_task = task
+                self._user_simulator = None  # Will be initialized on first send_message
+                self._user_state = None
+
+                # 4. Apply task initial state
+                if task.initial_state is not None:
+                    initialization_data = task.initial_state.initialization_data
+                    initialization_actions = task.initial_state.initialization_actions
+
+                    # Apply initialization data
+                    if initialization_data is not None:
+                        if initialization_data.agent_data is not None:
+                            self.environment.tools.update_db(initialization_data.agent_data.model_dump())
+                        if initialization_data.user_data is not None and self.environment.user_tools:
+                            self.environment.user_tools.update_db(initialization_data.user_data.model_dump())
+
+                    # Execute initialization actions
+                    if initialization_actions is not None:
+                        for action in initialization_actions:
+                            if action.function_name:
+                                # Execute the action on the appropriate toolkit
+                                if action.role == "agent":
+                                    getattr(self.environment.tools, action.function_name)(**action.kwargs)
+                                elif action.role == "user":
+                                    getattr(self.environment.user_tools, action.function_name)(**action.kwargs)
+
+                # 5. Get user's initial greeting
+                user_data = self.environment.user_tools.get_db() if self.environment.user_tools else {}
+                initial_greeting = user_data.get("greeting", "Hi! How can I help you today?")
+
+                return {
+                    "status": "ready",
+                    "domain": domain,
+                    "task_id": task_id,
+                    "initial_greeting": initial_greeting
+                }
+
+            except Exception as e:
+                import traceback
+                logger.error(f"Scenario initialization failed: {e}")
+                return {
+                    "error": f"Scenario initialization failed: {str(e)}",
+                    "traceback": traceback.format_exc()
+                }
+
+        @self.app.post("/send_message")
+        async def send_message(request: dict):
+            """
+            Send a message to the simulated user and get their response.
+
+            Args:
+                request: Dict with 'message' from agent
+
+            Returns:
+                User's response message
+            """
+            from tau2.user.user_simulator import UserSimulator
+            from tau2.data_model.message import AssistantMessage
+            from tau2.utils.utils import get_now
+            import os
+
+            message = request.get("message", "")
+
+            try:
+                # Initialize UserSimulator if not already done
+                if not hasattr(self, '_user_simulator') or self._user_simulator is None:
+                    # Get user scenario from current task (stored during initialize_scenario)
+                    if not hasattr(self, '_current_task') or self._current_task is None:
+                        return {"error": "No task loaded. Call /initialize_scenario first."}
+
+                    user_llm = os.getenv("USER_LLM", "gpt-4-0613")
+                    user_llm_args = {
+                        "temperature": float(os.getenv("USER_TEMPERATURE", "0.7")),
+                        "max_tokens": int(os.getenv("USER_MAX_TOKENS", "2500")),
+                    }
+
+                    # Get user tools if available
+                    user_tools = None
+                    if self.environment.user_tools:
+                        user_tools = self.environment.user_tools
+
+                    self._user_simulator = UserSimulator(
+                        tools=user_tools,
+                        instructions=self._current_task.user_scenario.instructions,
+                        llm=user_llm,
+                        llm_args=user_llm_args,
+                    )
+                    self._user_state = self._user_simulator.get_init_state(message_history=[])
+
+                # Create agent message
+                agent_message = AssistantMessage(
+                    role="assistant",
+                    content=message,
+                    cost=0.0,
+                    timestamp=get_now()
+                )
+
+                # Generate user response
+                user_message, new_state = self._user_simulator.generate_next_message(
+                    message=agent_message, state=self._user_state
+                )
+                self._user_state = new_state
+
+                # Handle user tool calls if any
+                while user_message.is_tool_call():
+                    tool_messages = []
+                    for tool_call in user_message.tool_calls:
+                        # Execute user tool
+                        tool_name = tool_call.function.name
+                        import json
+                        tool_args = json.loads(tool_call.function.arguments)
+
+                        result = getattr(self.environment.user_tools, tool_name)(**tool_args)
+
+                        from tau2.data_model.message import ToolMessage
+                        tool_msg = ToolMessage(
+                            role="tool",
+                            tool_call_id=tool_call.id,
+                            name=tool_name,
+                            content=json.dumps(result, ensure_ascii=False),
+                            timestamp=get_now()
+                        )
+                        tool_messages.append(tool_msg)
+
+                    # Get next user response after tool execution
+                    if len(tool_messages) > 1:
+                        from tau2.data_model.message import MultiToolMessage
+                        multi_tool_msg = MultiToolMessage(role="tool", tool_messages=tool_messages)
+                        user_message, new_state = self._user_simulator.generate_next_message(
+                            message=multi_tool_msg, state=self._user_state
+                        )
+                    else:
+                        user_message, new_state = self._user_simulator.generate_next_message(
+                            message=tool_messages[0], state=self._user_state
+                        )
+                    self._user_state = new_state
+
+                # Return user response
+                return {
+                    "user_message": user_message.content or "",
+                    "role": user_message.role
+                }
+
+            except Exception as e:
+                import traceback
+                logger.error(f"send_message failed: {e}")
+                return {
+                    "error": f"send_message failed: {str(e)}",
+                    "traceback": traceback.format_exc()
+                }
+
     def run(self, host: str = "127.0.0.1", port: int = 8002):
         """
         Run the FastAPI server.

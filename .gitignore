@@ -9,3 +9,4 @@ __pycache__/
 .hud_eval_config
 .hud_eval.toml
 hud.locl.yaml
+.pytest_cache

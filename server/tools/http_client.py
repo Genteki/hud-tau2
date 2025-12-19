@@ -189,6 +189,66 @@ class EnvironmentHTTPClient:
             logger.error(f"Environment reset failed: {e}")
             raise
 
+    def initialize_scenario(self, domain: str, task_id: str, task_split: str = "base") -> dict:
+        """
+        Initialize a complete scenario: load task, reset environment, apply initial state.
+
+        Args:
+            domain: Domain name (airline, retail, telecom)
+            task_id: Task ID to load
+            task_split: Task split (base, dev, test)
+
+        Returns:
+            Dict with status, domain, task_id, and initial_greeting
+
+        Raises:
+            requests.HTTPError: If the request fails
+        """
+        url = f"{self.base_url}/initialize_scenario"
+
+        payload = {
+            "domain": domain,
+            "task_id": task_id,
+            "task_split": task_split
+        }
+
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as e:
+            logger.error(f"Scenario initialization failed: {e}")
+            if e.response is not None:
+                logger.error(f"Response: {e.response.text}")
+            raise
+
+    def send_message(self, message: str) -> dict:
+        """
+        Send a message to the simulated user and get their response.
+
+        Args:
+            message: Agent's message to send
+
+        Returns:
+            Dict with user_message and role
+
+        Raises:
+            requests.HTTPError: If the request fails
+        """
+        url = f"{self.base_url}/send_message"
+
+        payload = {"message": message}
+
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as e:
+            logger.error(f"send_message failed: {e}")
+            if e.response is not None:
+                logger.error(f"Response: {e.response.text}")
+            raise
+
 
 # Global HTTP client instance
 _http_client: Optional[EnvironmentHTTPClient] = None

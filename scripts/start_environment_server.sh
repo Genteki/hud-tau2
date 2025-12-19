@@ -17,4 +17,4 @@ fi
 
 # Run the server
 cd "$PROJECT_ROOT"
-python3 -m tau2.environment.run_server --domain "$DOMAIN" --host "$HOST" --port "$PORT"
+python3 -m environment.run_server --domain "$DOMAIN" --host "$HOST" --port "$PORT"

@@ -92,21 +92,20 @@ class ConversationTool(BaseTool):
         )
 
     async def __call__(self, message: str) -> list[TextContent]:
-        """Send a message to the user simulator and get their response."""
+        """Send a message to the user simulator via HTTP and get their response."""
         tau2_task = get_tau2_task()
 
-        # Validate initialization
-        if not tau2_task.is_initialized():
+        # Validate task is loaded
+        if tau2_task.task is None:
             return [
                 TextContent(
-                    type="text", text="Error: Environment not initialized. Call setup/load first."
+                    type="text", text="Error: Task not initialized."
                 )
             ]
 
         try:
-            # Lazy initialization fallback (in case class variable was reset)
-            if self.__class__._user_simulator is None:
-                self.__class__.initialize_global(tau2_task)
+            # Send message to environment server's UserSimulator via HTTP
+            http_client = get_http_client()
             # Create and log agent message
             agent_message = AssistantMessage(
                 role="assistant",
