@@ -212,21 +212,34 @@ class HTTPUserTool(BaseTool):
         return mcp_tool
 
 
-def create_http_tools_from_server():
+def create_http_tools_from_server(max_retries=30, retry_delay=1.0):
     """
     Query the environment server and create HTTP-based MCP tools.
+
+    Args:
+        max_retries: Maximum number of connection attempts
+        retry_delay: Delay between retries in seconds
 
     Returns:
         Dict mapping tool names to HTTPTool instances
     """
+    import time
+
     client = get_http_client()
 
-    # Check server health first
-    if not client.health_check():
-        raise RuntimeError(
-            "Environment server is not reachable. Please start it first with:\n"
-            "  ./hud-tau2/scripts/start_environment_server.sh"
-        )
+    # Check server health with retries (for Docker container startup)
+    for attempt in range(max_retries):
+        if client.health_check():
+            break
+
+        if attempt < max_retries - 1:
+            logger.info(f"Environment server not ready, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
+            time.sleep(retry_delay)
+        else:
+            raise RuntimeError(
+                f"Environment server is not reachable after {max_retries} attempts. "
+                "Please ensure the environment server is running."
+            )
 
     # Get tools list from server
     tools_data = client.list_tools()
