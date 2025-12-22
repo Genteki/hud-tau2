@@ -416,7 +416,8 @@ The response will be the direct output of the tool execution.
                         for action in initialization_actions:
                             if action.func_name:
                                 # Execute the action on the appropriate toolkit
-                                if action.env_type == "agent":
+                                # Note: env_type can be "agent" or "assistant" for agent tools
+                                if action.env_type in ("agent", "assistant"):
                                     getattr(self.environment.tools, action.func_name)(**action.arguments)
                                 elif action.env_type == "user":
                                     getattr(self.environment.user_tools, action.func_name)(**action.arguments)
