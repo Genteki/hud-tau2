@@ -488,7 +488,14 @@ The response will be the direct output of the tool execution.
                         llm=user_llm,
                         llm_args=user_llm_args,
                     )
-                    self._user_state = self._user_simulator.get_init_state(message_history=[])
+
+                    # Initialize with task's initial message history if available
+                    initial_messages = []
+                    if (self._current_task.initial_state is not None and
+                        self._current_task.initial_state.message_history is not None):
+                        initial_messages = self._current_task.initial_state.message_history
+
+                    self._user_state = self._user_simulator.get_init_state(message_history=initial_messages)
 
                 # Create agent message
                 agent_message = AssistantMessage(
@@ -512,15 +519,26 @@ The response will be the direct output of the tool execution.
                         tool_name = tool_call.name
                         tool_args = tool_call.arguments
 
-                        result = getattr(self.environment.user_tools, tool_name)(**tool_args)
+                        try:
+                            result = getattr(self.environment.user_tools, tool_name)(**tool_args)
+                            error = False
+                        except Exception as e:
+                            result = f"Error: {e}"
+                            error = True
+                            logger.error(f"User tool execution error for '{tool_name}': {e}")
 
                         from tau2.data_model.message import ToolMessage
+                        from tau2.environment.environment import Environment
+
+                        # Use Environment.to_json_str for consistent serialization
+                        result_str = Environment.to_json_str(result)
+
                         tool_msg = ToolMessage(
                             id=tool_call.id,
                             role="tool",
-                            content=json.dumps(result, ensure_ascii=False),
+                            content=result_str,
                             requestor=tool_call.requestor,
-                            timestamp=get_now()
+                            error=error,
                         )
                         tool_messages.append(tool_msg)
 
