@@ -19,6 +19,7 @@ import asyncio
 import os
 
 import hud
+from hud import Environment
 from hud.agents import OpenAIChatAgent
 
 # Import local environment (this will connect to MCP server)
@@ -28,19 +29,16 @@ from env import env
 async def test_airline_remote():
     """Test airline scenario remotely."""
     print("=== Remote Test 1: Airline Scenario ===")
-
-    # Create task using the env that's already connected to MCP
-    task = env("tau2", domain="airline", task_id=0, task_split="base")
-
-    async with hud.eval(task) as ctx:
+    
+    env = Environment()
+    env.connect_hub("hud-tau2")
+    async with hud.eval("tau2-bench:tau2", domain="airline", task_id=0) as ctx:
         if ctx.prompt:
             print(f"Prompt: {ctx.prompt[:100]}...")
         else:
             print("Prompt: (scenario will provide prompt)")
-
-        # Use an agent to run the task
-        agent = OpenAIChatAgent.create(model="claude-sonnet-4-5")
-        await agent.run(ctx, max_steps=30)
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        await agent.run(ctx)
 
 
 async def test_telecom_remote():
@@ -142,7 +140,7 @@ async def main():
     # Uncomment the tests you want to run:
 
     await test_airline_remote()
-    await test_retail_remote()
+    # await test_retail_remote()
     # await test_telecom_remote()
     # await test_manual_tool_calls()
 
