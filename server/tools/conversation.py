@@ -46,7 +46,7 @@ def execute_user_tool_via_http(tool_call) -> ToolMessage:
             tool_call_id=tool_call.id,
             name=tool_call.function.name,
             content=json.dumps(result, ensure_ascii=False),
-            timestamp=datetime.now()
+            timestamp=datetime.now().isoformat()
         )
     except Exception as e:
         logger.error(f"HTTP user tool execution failed: {e}")
@@ -56,7 +56,7 @@ def execute_user_tool_via_http(tool_call) -> ToolMessage:
             tool_call_id=tool_call.id,
             name=tool_call.function.name,
             content=f"Error: {str(e)}",
-            timestamp=datetime.now()
+            timestamp=datetime.now().isoformat()
         )
 
 
@@ -111,7 +111,7 @@ class ConversationTool(BaseTool):
                 role="assistant",
                 content=message,
                 cost=0.0,
-                timestamp=datetime.now()
+                timestamp=datetime.now().isoformat()
             )
             tau2_task.add_message(agent_message)
 
