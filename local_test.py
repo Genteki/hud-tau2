@@ -108,6 +108,26 @@ async def test_telecom_scenario():
         await agent.run(ctx, max_steps=30)
 
 
+async def test_from_json():
+    """Load tasks from JSON and run locally."""
+    print("\n=== Test: Load from JSON ===")
+
+    from hud.datasets import load_tasks
+    from env import init
+
+    # Initialize the environment first
+    await init()
+
+    tasks = load_tasks("local_tasks.json")
+
+    # Bind to local environment and run
+    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
+
+    async with hud.eval(bound_tasks) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        await agent.run(ctx, max_steps=30)
+
+
 async def main():
     print("TAU2-Bench Environment - Local Test")
     print("=" * 50)
@@ -116,11 +136,14 @@ async def main():
     print("=" * 50)
     print()
 
-    await test_tools_standalone()
-    # Uncomment to run scenarios:
+    # Test loading from JSON (recommended)
+    await test_from_json()
+
+    # Or test individual scenarios:
+    # await test_tools_standalone()
     # await test_airline_scenario()
     # await test_retail_scenario()
-    await test_telecom_scenario()
+    # await test_telecom_scenario()
 
 
 if __name__ == "__main__":
