@@ -63,7 +63,6 @@ def register_tau2_scenarios(env):
 
             # Dynamically load tools for this domain from environment server
             from server.tools.http_tool import create_http_tools_from_server, get_http_tool_registry
-            from env import env as hud_env
 
             # Clear old domain tools from registry
             tool_registry = get_http_tool_registry()
@@ -73,8 +72,9 @@ def register_tau2_scenarios(env):
             http_tools = create_http_tools_from_server()
 
             # Add tools to environment (this registers them with the MCP server)
+            # Use the env parameter from register_tau2_scenarios closure
             for tool_name, http_tool in http_tools.items():
-                hud_env.add_tool(http_tool)
+                env.add_tool(http_tool)
 
             logger.info(f"Loaded {len(http_tools)} tools for domain '{domain}'")
 
