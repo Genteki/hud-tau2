@@ -78,6 +78,11 @@ def register_tau2_scenarios(env):
 
             logger.info(f"Loaded {len(http_tools)} tools for domain '{domain}'")
 
+            # Initialize conversation tool with the task scenario
+            from server.tools.conversation import ConversationTool
+            ConversationTool.initialize_global(tau2_task)
+            logger.info("Initialized conversation tool with user simulator")
+
         except Exception as e:
             logger.error(f"Setup failed: {e}")
             import traceback
