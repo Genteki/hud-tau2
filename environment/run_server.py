@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 def main():
+    # Strip quotes from API key if present (common issue with env var configuration)
+    if "OPENAI_API_KEY" in os.environ:
+        api_key = os.environ["OPENAI_API_KEY"]
+        # Remove surrounding quotes (single or double)
+        cleaned_key = api_key.strip().strip('"').strip("'")
+        if cleaned_key != api_key:
+            logger.info("Cleaned quotes from OPENAI_API_KEY")
+            os.environ["OPENAI_API_KEY"] = cleaned_key
+
     parser = argparse.ArgumentParser(description="Start tau2-bench environment server")
     parser.add_argument(
         "--domain",
