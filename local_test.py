@@ -15,6 +15,7 @@ from hud.agents import OpenAIChatAgent
 from openai import AsyncOpenAI
 
 from env import env
+from server.agent_loop import multi_agent_loop
 
 # Use HUD inference gateway - see all models at https://hud.ai/models
 # Get API key from environment or HUD settings
@@ -89,8 +90,9 @@ async def test_retail_scenario():
     )
 
     async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/models
-        await agent.run(ctx, max_steps=30)
+        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/model
+        # await agent.run(ctx, max_steps=30)
+        await multi_agent_loop(ctx, agent, max_steps=30)
 
 
 async def test_telecom_scenario():
@@ -105,7 +107,8 @@ async def test_telecom_scenario():
 
     async with hud.eval(task) as ctx:
         agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/models
-        await agent.run(ctx, max_steps=30)
+        # await agent.run(ctx, max_steps=30)
+        await multi_agent_loop(ctx, agent, max_steps=30)
 
 
 async def test_from_json():
@@ -125,7 +128,7 @@ async def test_from_json():
 
     async with hud.eval(bound_tasks) as ctx:
         agent = OpenAIChatAgent.create(model="gpt-5")
-        await agent.run(ctx, max_steps=30)
+        await multi_agent_loop(ctx, agent, max_steps=30)
 
 
 async def main():

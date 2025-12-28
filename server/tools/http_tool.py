@@ -247,8 +247,15 @@ def create_http_tools_from_server(max_retries=30, retry_delay=1.0):
     http_tools = {}
 
     # Create HTTPTool instances for regular tools
+    # Skip send_message - we use turn-based conversation instead
     for tool_info in tools_data.get("tools", []):
         tool_name = tool_info["name"]
+
+        # Filter out send_message tool
+        if tool_name == "send_message":
+            logger.info("Skipping send_message tool (using turn-based conversation)")
+            continue
+
         tool_desc = tool_info["description"]
         tool_schema = tool_info.get("parameters", {"type": "object", "properties": {}})
 
@@ -258,17 +265,9 @@ def create_http_tools_from_server(max_retries=30, retry_delay=1.0):
             tool_schema=tool_schema
         )
 
-    # Create HTTPUserTool instances for user tools
-    for tool_info in tools_data.get("user_tools", []):
-        tool_name = tool_info["name"]
-        tool_desc = tool_info["description"]
-        tool_schema = tool_info.get("parameters", {"type": "object", "properties": {}})
-
-        http_tools[tool_name] = HTTPUserTool(
-            tool_name=tool_name,
-            tool_description=tool_desc,
-            tool_schema=tool_schema
-        )
+    # Don't create HTTPUserTool instances - user tools are only for UserSimulator
+    # User tools are fetched separately in ConversationTool.initialize_global()
+    # and passed to the UserSimulator, not exposed to the agent
 
     logger.info(f"Created {len(http_tools)} HTTP-based MCP tools from environment server")
 

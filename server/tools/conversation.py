@@ -34,29 +34,35 @@ def execute_user_tool_via_http(tool_call) -> ToolMessage:
     http_client = get_http_client()
 
     try:
+        # tau2-bench ToolCall has .name and .arguments (not .function.name)
+        tool_name = tool_call.name
+        tool_args = tool_call.arguments if isinstance(tool_call.arguments, dict) else json.loads(tool_call.arguments)
+
         # Execute user tool via HTTP
         result = http_client.execute_user_tool(
-            tool_name=tool_call.function.name,
-            **json.loads(tool_call.function.arguments)
+            tool_name=tool_name,
+            **tool_args
         )
 
-        # Create ToolMessage with result
-        return ToolMessage(
+        # Create tau2-bench ToolMessage (not MCP ToolMessage)
+        from tau2.data_model.message import ToolMessage as Tau2ToolMessage
+        return Tau2ToolMessage(
+            id=tool_call.id,
             role="tool",
-            tool_call_id=tool_call.id,
-            name=tool_call.function.name,
             content=json.dumps(result, ensure_ascii=False),
-            timestamp=datetime.now().isoformat()
+            requestor=tool_call.requestor,
+            error=False
         )
     except Exception as e:
         logger.error(f"HTTP user tool execution failed: {e}")
         # Return error as tool message
-        return ToolMessage(
+        from tau2.data_model.message import ToolMessage as Tau2ToolMessage
+        return Tau2ToolMessage(
+            id=tool_call.id,
             role="tool",
-            tool_call_id=tool_call.id,
-            name=tool_call.function.name,
             content=f"Error: {str(e)}",
-            timestamp=datetime.now().isoformat()
+            requestor=tool_call.requestor,
+            error=True
         )
 
 
@@ -241,14 +247,51 @@ class ConversationTool(BaseTool):
             "max_tokens": int(os.getenv("USER_MAX_TOKENS", "2500")),
         }
 
-        # Get user tools if available (for telecom domain)
+        # Get user tools from HTTP environment server
+        # Create Tool objects with dummy functions (actual execution happens via HTTP)
         user_tools = None
-        if tau2_task.environment and hasattr(tau2_task.environment, "get_user_tools"):
-            try:
-                user_tools = tau2_task.environment.get_user_tools()
-            except (ValueError, AttributeError):
-                # No user tools available for this domain
-                user_tools = None
+        try:
+            from server.tools.http_client import get_http_client
+            from tau2.environment.toolkit import Tool
+
+            http_client = get_http_client()
+            tools_data = http_client.list_tools()
+
+            logger.info(f"Tools data from server: agent_tools={len(tools_data.get('tools', []))}, user_tools={len(tools_data.get('user_tools', []))}")
+
+            # Convert user_tools to Tool objects with dummy functions
+            if "user_tools" in tools_data and tools_data["user_tools"]:
+                user_tools = []
+                for tool_info in tools_data["user_tools"]:
+                    tool_name = tool_info["name"]
+                    tool_desc = tool_info["description"]
+                    tool_params = tool_info.get("parameters", {"type": "object", "properties": {}})
+
+                    # Create a dummy function with the tool's metadata
+                    # The actual execution happens via HTTP in execute_user_tool_via_http
+                    def make_dummy_func(name, desc, params):
+                        def dummy_func(**kwargs):
+                            """Dummy function - actual execution via HTTP"""
+                            pass
+                        dummy_func.__name__ = name
+                        dummy_func.__doc__ = desc
+                        return dummy_func
+
+                    dummy_func = make_dummy_func(tool_name, tool_desc, tool_params)
+
+                    # Create Tool object with the dummy function and parameter schema
+                    tool = Tool(func=dummy_func, **tool_params)
+                    user_tools.append(tool)
+
+                logger.info(f"Loaded {len(user_tools)} user tools for UserSimulator:")
+                for tool in user_tools:
+                    logger.info(f"  - {tool.openai_schema['function']['name']}: {tool.openai_schema['function']['description']}")
+            else:
+                logger.warning("No user_tools found in tools_data!")
+        except Exception as e:
+            logger.error(f"Failed to load user tools: {e}")
+            import traceback
+            traceback.print_exc()
 
         # Create UserSimulator
         cls._user_simulator = UserSimulator(
