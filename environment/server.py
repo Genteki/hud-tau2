@@ -232,9 +232,10 @@ The response will be the direct output of the tool execution.
 
         @self.app.get("/tools")
         async def list_tools():
-            """List all available tools."""
+            """List all available tools (both agent tools and user tools)."""
             from tau2.environment.toolkit import get_tool_signatures
 
+            # Get agent tools
             tool_signatures = get_tool_signatures(self.environment.tools)
             tools_list = []
             for name, signature in tool_signatures.items():
@@ -244,7 +245,18 @@ The response will be the direct output of the tool execution.
                     "parameters": signature.params
                 })
 
-            return {"tools": tools_list}
+            # Get user tools if available
+            user_tools_list = []
+            if self.environment.user_tools:
+                user_tool_signatures = get_tool_signatures(self.environment.user_tools)
+                for name, signature in user_tool_signatures.items():
+                    user_tools_list.append({
+                        "name": name,
+                        "description": signature.doc,
+                        "parameters": signature.params
+                    })
+
+            return {"tools": tools_list, "user_tools": user_tools_list}
 
         @self.app.post("/execute_tool")
         async def execute_tool(request: dict):

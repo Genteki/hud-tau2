@@ -52,13 +52,6 @@ async def init():
     from server.scenarios import register_tau2_scenarios
     register_tau2_scenarios(env)
 
-    # Register conversation tool for multi-turn mode
-    from server.tools.conversation_new import create_conversation_tool
-    _conversation_tool = create_conversation_tool()
-    env.add_tool(_conversation_tool)
-
-    # Don't load HTTP tools at initialization - they will be loaded dynamically
-    # when a scenario is set up (because the domain changes per scenario)
     logger.info("Initialized tau2-bench - domain tools will be loaded per scenario")
 
 

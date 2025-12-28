@@ -15,6 +15,7 @@ from hud.agents import OpenAIChatAgent
 from hud.datasets import load_tasks
 
 from env import env
+from server.agent_loop import multi_agent_loop
 
 
 async def test_from_json():
@@ -36,7 +37,7 @@ async def test_from_json():
 
     async with hud.eval(bound_tasks) as ctx:
         agent = OpenAIChatAgent.create(model="gpt-4o")
-        await agent.run(ctx, max_steps=30)
+        await multi_agent_loop(ctx, agent, max_steps=30)
 
 
 async def test_from_platform(slug: str = "Genteki/tau2-bench-tiny"):

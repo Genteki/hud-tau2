@@ -100,12 +100,31 @@ def register_tau2_scenarios(env):
             logger.warning(f"Could not get policy: {e}")
             policy = "No specific policy available."
 
-        prompt = f"""You are a customer service agent for {domain}.
+#         prompt = f"""You are a customer service agent for {domain}.
 
-<instructions>
+# <instructions>
+# You are a customer service agent that helps the user according to the <policy> provided below.
+# In each turn you can either:
+# - Send a message to the user using the send_message tool.
+# - Make a tool call to check or modify data.
+# You cannot do both at the same time.
+
+# Try to be helpful and always follow the policy.
+# </instructions>
+
+# <policy>
+# {policy}
+# </policy>
+
+# The customer has sent you this message:
+# {initial_greeting}
+
+# Use the send_message tool to respond to the customer.
+# """
+        prompt = f"""<instructions>
 You are a customer service agent that helps the user according to the <policy> provided below.
 In each turn you can either:
-- Send a message to the user using the send_message tool.
+- Send a message to the user (by providing text in your response).
 - Make a tool call to check or modify data.
 You cannot do both at the same time.
 
@@ -119,8 +138,7 @@ Try to be helpful and always follow the policy.
 The customer has sent you this message:
 {initial_greeting}
 
-Use the send_message tool to respond to the customer.
-"""
+Please respond to the customer."""
 
         # Yield the prompt and let the agent interact
         # The answer is not used since tau2 evaluates the full conversation trajectory
