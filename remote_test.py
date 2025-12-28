@@ -58,7 +58,7 @@ async def test_from_platform(slug: str = "Genteki/tau2-bench-tiny"):
 
     async with hud.eval(bound_tasks) as ctx:
         agent = OpenAIChatAgent.create(model="gpt-4o")
-        await agent.run(ctx, max_steps=30)
+        await multi_agent_loop(ctx, agent, max_steps=30)
 
 
 async def main():

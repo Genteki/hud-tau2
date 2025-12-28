@@ -1,0 +1,10 @@
+[
+  {
+    "scenario": "tau2",
+    "args": {
+      "domain": "telecom",
+      "task_id": "[mms_issue]bad_wifi_calling|data_mode_off|data_usage_exceeded[PERSONA:Easy]",
+      "task_split": "base"
+    }
+  }
+]

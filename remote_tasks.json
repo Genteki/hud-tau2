@@ -1,0 +1,13 @@
+[
+    {
+      "env": {
+        "name": "hud-external/hud-tau2"
+      },
+      "scenario": "tau2",
+      "args": {
+        "domain": "retail",
+        "task_id": 0,
+        "task_split": "base"
+      }
+    }
+]
