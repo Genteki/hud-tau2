@@ -44,12 +44,17 @@ def execute_user_tool_via_http(tool_call) -> ToolMessage:
             **tool_args
         )
 
+        result_str = json.dumps(result, ensure_ascii=False)
+
+        # Log user tool execution result during runtime
+        logger.debug(f"[RUNTIME-USER] Tool '{tool_name}' with args {tool_args} returned: {result_str[:200]}")
+
         # Create tau2-bench ToolMessage (not MCP ToolMessage)
         from tau2.data_model.message import ToolMessage as Tau2ToolMessage
         return Tau2ToolMessage(
             id=tool_call.id,
             role="tool",
-            content=json.dumps(result, ensure_ascii=False),
+            content=result_str,
             requestor=tool_call.requestor,
             error=False
         )
@@ -284,8 +289,6 @@ class ConversationTool(BaseTool):
                     user_tools.append(tool)
 
                 logger.info(f"Loaded {len(user_tools)} user tools for UserSimulator:")
-                for tool in user_tools:
-                    logger.info(f"  - {tool.openai_schema['function']['name']}: {tool.openai_schema['function']['description']}")
             else:
                 logger.warning("No user_tools found in tools_data!")
         except Exception as e:

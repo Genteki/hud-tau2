@@ -106,9 +106,13 @@ class HTTPTool(BaseTool):
                 else:
                     # Dict/list results need JSON encoding
                     result_str = json.dumps(result, ensure_ascii=False)
+
+                # Log tool execution result during runtime
+                logger.debug(f"[RUNTIME] Tool '{self.name}' with args {kwargs} returned: {result_str[:200]}")
             except Exception as e:
                 result_str = f"Error: {e}"
                 error = True
+                logger.error(f"[RUNTIME] Tool '{self.name}' failed: {e}")
 
             # Log ToolMessage (environment response) - matches reference implementation
             tool_msg = ToolMessage(

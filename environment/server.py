@@ -283,6 +283,8 @@ The response will be the direct output of the tool execution.
                 # Try regular tools first
                 if self.environment.tools.has_tool(tool_name):
                     result = self.environment.use_tool(tool_name=tool_name, **tool_args)
+                    # Call sync_tools after agent tool execution (matches tau2-bench behavior)
+                    self.environment.sync_tools()
                     # Serialize with Environment.to_json_str to preserve tau2 formatting
                     result_str = Environment.to_json_str(result)
                     # If result_str is already a JSON string, parse it; otherwise wrap it
@@ -295,6 +297,8 @@ The response will be the direct output of the tool execution.
                 # Try user tools
                 elif self.environment.user_tools and self.environment.user_tools.has_tool(tool_name):
                     result = self.environment.use_user_tool(tool_name=tool_name, **tool_args)
+                    # Call sync_tools after user tool execution (matches tau2-bench behavior)
+                    self.environment.sync_tools()
                     # Serialize with Environment.to_json_str to preserve tau2 formatting
                     result_str = Environment.to_json_str(result)
                     # If result_str is already a JSON string, parse it; otherwise wrap it
@@ -419,9 +423,9 @@ The response will be the direct output of the tool execution.
                     # Apply initialization data
                     if initialization_data is not None:
                         if initialization_data.agent_data is not None:
-                            self.environment.tools.update_db(initialization_data.agent_data.model_dump())
+                            self.environment.tools.update_db(initialization_data.agent_data)
                         if initialization_data.user_data is not None and self.environment.user_tools:
-                            self.environment.user_tools.update_db(initialization_data.user_data.model_dump())
+                            self.environment.user_tools.update_db(initialization_data.user_data)
 
                     # Execute initialization actions
                     if initialization_actions is not None:
@@ -531,13 +535,33 @@ The response will be the direct output of the tool execution.
                         tool_name = tool_call.name
                         tool_args = tool_call.arguments
 
+                        # Log state BEFORE user tool execution for debugging
+                        if hasattr(self.environment.user_tools, 'db') and hasattr(self.environment.user_tools.db, 'device'):
+                            debug_info = f"[HTTP-BEFORE] Tool '{tool_name}', db_id={id(self.environment.user_tools.db)}, device_id={id(self.environment.user_tools.db.device)}"
+                            if hasattr(self.environment.user_tools.db.device, 'data_enabled'):
+                                debug_info += f", data_enabled={self.environment.user_tools.db.device.data_enabled}"
+                            if hasattr(self.environment.user_tools.db.device, 'wifi_calling_enabled'):
+                                debug_info += f", wifi_calling_enabled={self.environment.user_tools.db.device.wifi_calling_enabled}"
+                            logger.debug(debug_info)
+
                         try:
                             result = getattr(self.environment.user_tools, tool_name)(**tool_args)
+                            # Call sync_tools after user tool execution (matches tau2-bench behavior)
+                            self.environment.sync_tools()
                             error = False
                         except Exception as e:
                             result = f"Error: {e}"
                             error = True
                             logger.error(f"User tool execution error for '{tool_name}': {e}")
+
+                        # Log state AFTER user tool execution for debugging
+                        if hasattr(self.environment.user_tools, 'db') and hasattr(self.environment.user_tools.db, 'device'):
+                            debug_info = f"[HTTP-AFTER] Tool '{tool_name}', db_id={id(self.environment.user_tools.db)}, device_id={id(self.environment.user_tools.db.device)}"
+                            if hasattr(self.environment.user_tools.db.device, 'data_enabled'):
+                                debug_info += f", data_enabled={self.environment.user_tools.db.device.data_enabled}"
+                            if hasattr(self.environment.user_tools.db.device, 'wifi_calling_enabled'):
+                                debug_info += f", wifi_calling_enabled={self.environment.user_tools.db.device.wifi_calling_enabled}"
+                            logger.debug(debug_info)
 
                         from tau2.data_model.message import ToolMessage
                         from tau2.environment.environment import Environment

@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "HUD MCP server for tau2-bench evaluation tasks"
 requires-python = ">=3.11"
 dependencies = [
-    "hud-python"
+    "hud-python",
+    "tau2"
 ]
 
 [build-system]

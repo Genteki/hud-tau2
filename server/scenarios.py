@@ -151,6 +151,18 @@ Please respond to the customer."""
         try:
             tau2_task = get_tau2_task()
 
+            # Log all messages in the trajectory for debugging
+            logger.info(f"[EVAL] Starting evaluation with {len(tau2_task.messages)} messages in trajectory")
+            for i, msg in enumerate(tau2_task.messages):
+                msg_type = type(msg).__name__
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    logger.debug(f"[EVAL] Message {i}: {msg_type} with {len(msg.tool_calls)} tool calls")
+                    for tc in msg.tool_calls:
+                        logger.debug(f"[EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor}, Args: {tc.arguments}")
+                elif hasattr(msg, 'content'):
+                    content_preview = msg.content[:100] if msg.content else "None"
+                    logger.debug(f"[EVAL] Message {i}: {msg_type}, Content: {content_preview}")
+
             # Run tau2-bench evaluation (inline, same as evaluate/eval.py)
             from tau2.evaluator.evaluator import evaluate_simulation, EvaluationType
             from tau2.data_model.simulation import SimulationRun, TerminationReason

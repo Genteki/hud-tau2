@@ -9,23 +9,27 @@ This script uses the local env module for scenarios/tools.
 """
 import asyncio
 import os
+import logging
 
 import hud
 from hud.agents import OpenAIChatAgent
+from hud.datasets import load_tasks
 from openai import AsyncOpenAI
 
 from env import env
+from env import init
 from server.agent_loop import multi_agent_loop
+
+# Disable LiteLLM info logging
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+logging.getLogger("litellm").setLevel(logging.WARNING)
 
 # Use HUD inference gateway - see all models at https://hud.ai/models
 # Get API key from environment or HUD settings
 api_key = os.getenv("HUD_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not api_key:
-    try:
-        from hud.settings import settings
-        api_key = settings.api_key
-    except:
-        pass
+    from hud.settings import settings
+    api_key = settings.api_key
 
 client = AsyncOpenAI(base_url="https://inference.hud.ai", api_key=api_key) if api_key else None
 
@@ -115,8 +119,6 @@ async def test_from_json():
     """Load tasks from JSON and run locally."""
     print("\n=== Test: Load from JSON ===")
 
-    from hud.datasets import load_tasks
-    from env import init
 
     # Initialize the environment first
     await init()
@@ -127,27 +129,75 @@ async def test_from_json():
     bound_tasks = [env(t.scenario, **t.args) for t in tasks]
 
     async with hud.eval(bound_tasks) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")
+        from hud.agents.claude import ClaudeAgent
+        agent = ClaudeAgent.create(
+            model="claude-haiku-4-5",
+        )
         await multi_agent_loop(ctx, agent, max_steps=30)
+
+async def test_hud_run():
+    print("\n=== Test: Load from JSON ===")
+    # Initialize the environment first
+    await init()
+
+    tasks = load_tasks("local_tasks.json")
+
+    # Bind to local environment and run
+    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
+
+    async with hud.eval(bound_tasks) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        # from hud.agents.claude import ClaudeAgent
+        # agent = ClaudeAgent.create(
+        #     model="claude-sonnet-4-5",
+        # )
+        await agent.run(ctx, max_steps=30)
 
 
 async def main():
+    # Set up comprehensive logging to file
+    log_file = "log"
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s | %(levelname)-7s | %(name)s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    ))
+
+    # Add file handler to relevant loggers
+    loggers_to_capture = [
+        'hud.agents.base',
+        'server.scenarios',
+        'server.tools',
+        'server.state',
+        'tau2.environment.environment',
+        'tau2.evaluator',
+        'tau2.user.user_simulator',
+    ]
+
+    for logger_name in loggers_to_capture:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(file_handler)
+
     print("TAU2-Bench Environment - Local Test")
     print("=" * 50)
     print("Make sure the environment server is running:")
     print("  ./hud-tau2/scripts/start_environment_server.sh")
     print("=" * 50)
+    print(f"Logging to: {log_file}")
+    print("=" * 50)
     print()
 
     # Test loading from JSON (recommended)
-    await test_from_json()
 
     # Or test individual scenarios:
     # await test_tools_standalone()
     # await test_airline_scenario()
     # await test_retail_scenario()
     # await test_telecom_scenario()
-
+    await test_hud_run()
+    # await test_from_json()
 
 if __name__ == "__main__":
     asyncio.run(main())
