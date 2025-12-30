@@ -14,6 +14,7 @@ COPY pyproject.toml ./
 RUN pip install .
 
 # Copy source code
+COPY env.py ./
 COPY server/ ./server/
 COPY task/ ./task/
 COPY environment/ ./environment/
@@ -23,6 +24,7 @@ ENV TAU2_DATA_DIR=/app/tau2-bench/data
 ENV DOMAIN=airline
 ENV BACKEND_PORT=8002
 ENV TAU2_SERVER_URL=http://localhost:8002
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 # Start environment server in background, then run MCP server
-CMD ["sh", "-c", "python -m environment.run_server --domain ${DOMAIN} --host 0.0.0.0 --port ${BACKEND_PORT} >&2 & sleep 1 && python -m server.main"]
+CMD ["sh", "-c", "python -m environment.run_server --domain ${DOMAIN} --host 0.0.0.0 --port ${BACKEND_PORT} >&2 & sleep 1 && hud dev env:env --stdio"]
