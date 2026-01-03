@@ -11,15 +11,27 @@ import sys
 
 from hud import Environment
 
-# Configure logging to stderr (MCP uses stdout for communication)
-logging.basicConfig(
-    stream=sys.stderr,
-    level=logging.INFO,
-    format="[%(levelname)s] %(asctime)s | %(name)s | %(message)s",
-    force=True,
-)
-for logger_name in ["httpx", "httpcore"]:
+# Configure Python's standard logging to stderr (MCP uses stdout for communication)
+# Only configure if not already configured (don't override test script settings)
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,  # INFO level to show evaluation results
+        format="[%(levelname)s] %(asctime)s | %(name)s | %(message)s",
+    )
+
+# Suppress verbose loggers
+for logger_name in ["httpx", "httpcore", "LiteLLM", "litellm"]:
     logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+# Suppress "Tool already exists" warnings from HUD's tool manager
+logging.getLogger("hud.environment.tool_manager").setLevel(logging.ERROR)
+
+# CRITICAL: Configure tau2's loguru logger (tau2 uses loguru, not standard logging!)
+# Set to WARNING level to suppress verbose INFO messages from tau2
+from loguru import logger as tau2_logger
+tau2_logger.remove()  # Remove default handler
+tau2_logger.add(sys.stderr, level="WARNING")
 
 logger = logging.getLogger(__name__)
 

@@ -19,6 +19,13 @@ class Tau2Task:
     environment: Optional[Environment] = None
     messages: List[Message] = field(default_factory=list)
     solo_mode: bool = False
+    system_prompt: Optional[str] = None  # System prompt with policy for agent
+
+    # Token usage tracking
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_cache_creation_tokens: int = 0
+    total_cache_read_tokens: int = 0
 
     def is_initialized(self) -> bool:
         """Check if a task and environment are initialized."""
@@ -57,6 +64,21 @@ class Tau2Task:
         """Clear the message history."""
         self.messages = []
 
+    def add_tokens(self, input_tokens: int = 0, output_tokens: int = 0,
+                   cache_creation_tokens: int = 0, cache_read_tokens: int = 0):
+        """Add token usage to running totals."""
+        self.total_input_tokens += input_tokens
+        self.total_output_tokens += output_tokens
+        self.total_cache_creation_tokens += cache_creation_tokens
+        self.total_cache_read_tokens += cache_read_tokens
+
+    def reset_tokens(self):
+        """Reset token counters."""
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_cache_creation_tokens = 0
+        self.total_cache_read_tokens = 0
+
     def get_task_info(self) -> Dict[str, Any]:
         """
         Get information about the current task.
@@ -91,4 +113,6 @@ class Tau2Task:
         self.environment = None
         self.messages = []
         self.solo_mode = False
+        self.system_prompt = None
+        self.reset_tokens()
 

@@ -52,6 +52,14 @@ def register_tau2_scenarios(env):
 
             # Also update global tau2_task state (for message tracking and evaluation)
             tau2_task = get_tau2_task()
+
+            # Clear previous task state to avoid contamination
+            prev_msg_count = len(tau2_task.messages)
+            tau2_task.clear_messages()
+            tau2_task.reset_tokens()
+            if prev_msg_count > 0:
+                logger.info(f"Cleared {prev_msg_count} messages from previous task")
+
             task_loader = registry.get_tasks_loader(domain)
             tasks = task_loader(task_split_name=task_split)
             tau2_task.domain = domain
@@ -78,10 +86,10 @@ def register_tau2_scenarios(env):
 
             logger.info(f"Loaded {len(http_tools)} tools for domain '{domain}'")
 
-            # Initialize conversation tool with the task scenario
-            from server.tools.conversation import ConversationTool
-            ConversationTool.initialize_global(tau2_task)
-            logger.info("Initialized conversation tool with user simulator")
+            # Initialize UserSimulator for conversation loop
+            from server.tools.conversation import initialize_user_simulator
+            initialize_user_simulator(tau2_task)
+            logger.info("Initialized UserSimulator for conversation loop")
 
         except Exception as e:
             logger.error(f"Setup failed: {e}")
@@ -92,7 +100,7 @@ def register_tau2_scenarios(env):
             return
 
         # ===== PROMPT (first yield) =====
-        # Provide the task prompt to the agent with policy (like original tau2-bench)
+        # Provide the task prompt to the agent with policy (matching tau2-bench structure)
         # Get policy from environment server
         try:
             policy = http_client.get_policy()
@@ -100,28 +108,9 @@ def register_tau2_scenarios(env):
             logger.warning(f"Could not get policy: {e}")
             policy = "No specific policy available."
 
-#         prompt = f"""You are a customer service agent for {domain}.
-
-# <instructions>
-# You are a customer service agent that helps the user according to the <policy> provided below.
-# In each turn you can either:
-# - Send a message to the user using the send_message tool.
-# - Make a tool call to check or modify data.
-# You cannot do both at the same time.
-
-# Try to be helpful and always follow the policy.
-# </instructions>
-
-# <policy>
-# {policy}
-# </policy>
-
-# The customer has sent you this message:
-# {initial_greeting}
-
-# Use the send_message tool to respond to the customer.
-# """
-        prompt = f"""<instructions>
+        # System prompt with policy (matching tau2-bench's SYSTEM_PROMPT)
+        # Store in tau2_task so the conversation loop can set agent.system_prompt
+        system_prompt = f"""<instructions>
 You are a customer service agent that helps the user according to the <policy> provided below.
 In each turn you can either:
 - Send a message to the user (by providing text in your response).
@@ -133,15 +122,16 @@ Try to be helpful and always follow the policy.
 
 <policy>
 {policy}
-</policy>
+</policy>"""
 
-The customer has sent you this message:
-{initial_greeting}
+        tau2_task.system_prompt = system_prompt
+        logger.info("Stored system prompt with policy in tau2_task")
 
-Please respond to the customer."""
+        # Initial user message (just the greeting, no policy)
+        prompt = f"""Greet the customer with message: {initial_greeting}"""
 
         # Yield the prompt and let the agent interact
-        # The answer is not used since tau2 evaluates the full conversation trajectory
+        # The conversation loop will set agent.system_prompt from tau2_task.system_prompt
         _ = yield prompt
 
         # ===== EVALUATE SECTION =====
@@ -153,15 +143,15 @@ Please respond to the customer."""
 
             # Log all messages in the trajectory for debugging
             logger.info(f"[EVAL] Starting evaluation with {len(tau2_task.messages)} messages in trajectory")
-            for i, msg in enumerate(tau2_task.messages):
-                msg_type = type(msg).__name__
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                    logger.debug(f"[EVAL] Message {i}: {msg_type} with {len(msg.tool_calls)} tool calls")
-                    for tc in msg.tool_calls:
-                        logger.debug(f"[EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor}, Args: {tc.arguments}")
-                elif hasattr(msg, 'content'):
-                    content_preview = msg.content[:100] if msg.content else "None"
-                    logger.debug(f"[EVAL] Message {i}: {msg_type}, Content: {content_preview}")
+            # for i, msg in enumerate(tau2_task.messages):
+            #     msg_type = type(msg).__name__
+            #     if hasattr(msg, 'tool_calls') and msg.tool_calls:
+            #         logger.debug(f"[EVAL] Message {i}: {msg_type} with {len(msg.tool_calls)} tool calls")
+            #         for tc in msg.tool_calls:
+            #             logger.debug(f"[EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor}, Args: {tc.arguments}")
+            #     elif hasattr(msg, 'content'):
+            #         content_preview = msg.content[:100] if msg.content else "None"
+            #         logger.debug(f"[EVAL] Message {i}: {msg_type}, Content: {content_preview}")
 
             # Run tau2-bench evaluation (inline, same as evaluate/eval.py)
             from tau2.evaluator.evaluator import evaluate_simulation, EvaluationType
@@ -210,15 +200,72 @@ Please respond to the customer."""
             if reward_info.db_check:
                 logger.info(f"\nDatabase Check: match={reward_info.db_check.db_match}, reward={reward_info.db_check.db_reward}")
 
+                # Show expected vs actual database state if mismatch
+                if not reward_info.db_check.db_match and tau2_task.environment:
+                    try:
+                        # Get actual database state
+                        actual_agent_db_hash = tau2_task.environment.get_db_hash()
+                        actual_user_db_hash = tau2_task.environment.get_user_db_hash()
+
+                        # Compute expected state by replaying golden actions
+                        from tau2.environment.environment import Environment
+                        expected_env = Environment(domain=tau2_task.domain)
+                        if tau2_task.task.initial_state:
+                            expected_env.set_state(
+                                initialization_data=tau2_task.task.initial_state.initialization_data,
+                                initialization_actions=tau2_task.task.initial_state.initialization_actions,
+                                message_history=[]
+                            )
+
+                        # Run golden actions
+                        if tau2_task.task.evaluation_criteria and tau2_task.task.evaluation_criteria.actions:
+                            for action in tau2_task.task.evaluation_criteria.actions:
+                                try:
+                                    expected_env.make_tool_call(
+                                        tool_name=action.name,
+                                        requestor=action.requestor,
+                                        **action.arguments,
+                                    )
+                                except Exception:
+                                    pass
+
+                        expected_agent_db_hash = expected_env.get_db_hash()
+                        expected_user_db_hash = expected_env.get_user_db_hash()
+
+                        logger.info(f"  Agent DB - Expected hash: {expected_agent_db_hash}, Actual hash: {actual_agent_db_hash}")
+                        logger.info(f"  User DB  - Expected hash: {expected_user_db_hash}, Actual hash: {actual_user_db_hash}")
+
+                        # Show actual database content if available
+                        if tau2_task.environment.tools:
+                            agent_db = tau2_task.environment.tools.get_db()
+                            if agent_db:
+                                logger.info(f"  Actual Agent DB: {agent_db.model_dump()}")
+                        if tau2_task.environment.user_tools:
+                            user_db = tau2_task.environment.user_tools.get_db()
+                            if user_db:
+                                logger.info(f"  Actual User DB: {user_db.model_dump()}")
+
+                    except Exception as e:
+                        logger.debug(f"Could not show database details: {e}")
+
             if reward_info.env_assertions:
                 logger.info(f"\nEnvironment Assertions: {len(reward_info.env_assertions)} checks")
                 for i, check in enumerate(reward_info.env_assertions):
-                    logger.info(f"  [{i+1}] {check.env_assertion}: met={check.met}, reward={check.reward}")
+                    # Show assertion function and expected value
+                    env_assert = check.env_assertion
+                    func_info = f"{env_assert.env_type}.{env_assert.func_name}"
+                    if env_assert.arguments:
+                        args_str = ", ".join(f'{k}={v}' for k, v in env_assert.arguments.items())
+                        func_info += f"({args_str})"
+                    logger.info(f"  [{i+1}] {func_info}: met={check.met}, reward={check.reward}")
 
             if reward_info.action_checks:
                 logger.info(f"\nAction Checks: {len(reward_info.action_checks)} checks")
                 for i, check in enumerate(reward_info.action_checks):
-                    logger.info(f"  [{i+1}] {check.action}: match={check.action_match}, reward={check.action_reward}")
+                    # Compact format: Action 1: requestor.action_name(args) -- reward: X.X
+                    action = check.action
+                    args_str = ", ".join(f'{k}="{v}"' if isinstance(v, str) else f'{k}={v}' for k, v in action.arguments.items())
+                    logger.info(f"  Action {i+1}: {action.requestor}.{action.name}({args_str}) -- reward: {check.action_reward}")
 
             if reward_info.nl_assertions:
                 logger.info(f"\nNL Assertions: {len(reward_info.nl_assertions)} checks")
@@ -236,6 +283,17 @@ Please respond to the customer."""
 
             if reward_info.info:
                 logger.info(f"\nAdditional Info: {reward_info.info}")
+
+            # Log token usage summary
+            logger.info(f"\nToken Usage:")
+            logger.info(f"  Input tokens: {tau2_task.total_input_tokens:,}")
+            logger.info(f"  Output tokens: {tau2_task.total_output_tokens:,}")
+            if tau2_task.total_cache_creation_tokens > 0:
+                logger.info(f"  Cache creation tokens: {tau2_task.total_cache_creation_tokens:,}")
+            if tau2_task.total_cache_read_tokens > 0:
+                logger.info(f"  Cache read tokens: {tau2_task.total_cache_read_tokens:,}")
+            total_tokens = tau2_task.total_input_tokens + tau2_task.total_output_tokens
+            logger.info(f"  Total tokens: {total_tokens:,}")
 
             logger.info("=" * 60)
 

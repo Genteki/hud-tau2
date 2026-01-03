@@ -3,7 +3,35 @@
     "scenario": "tau2",
     "args": {
       "domain": "telecom",
-      "task_id": "[mms_issue]bad_wifi_calling|data_mode_off|data_usage_exceeded[PERSONA:Easy]",
+      "task_id": "[mobile_data_issue]airplane_mode_on|user_abroad_roaming_enabled_off[PERSONA:None]",
+      "task_split": "base"
+    }
+  }, {
+    "scenario": "tau2",
+    "args": {
+      "domain": "telecom",
+      "task_id": "[mobile_data_issue]airplane_mode_on|data_mode_off[PERSONA:None]",
+      "task_split": "base"
+    }
+  }, {
+    "scenario": "tau2",
+    "args": {
+      "domain": "telecom",
+      "task_id": "[mobile_data_issue]airplane_mode_on|bad_network_preference[PERSONA:Hard]",
+      "task_split": "base"
+    }
+  }, {
+    "scenario": "tau2",
+    "args": {
+      "domain": "telecom",
+      "task_id": "[mobile_data_issue]data_saver_mode_on|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "task_split": "base"
+    }
+  }, {
+    "scenario": "tau2",
+    "args": {
+      "domain": "telecom",
+      "task_id": "[mobile_data_issue]bad_network_preference|user_abroad_roaming_enabled_off[PERSONA:Hard]",
       "task_split": "base"
     }
   }

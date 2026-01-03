@@ -314,9 +314,14 @@ The response will be the direct output of the tool execution.
                         detail=f"Tool '{tool_name}' not found in current domain '{self.environment.get_domain_name()}'"
                     )
             except Exception as e:
+                # Return errors as successful responses (matching tau2-bench behavior)
+                # Errors are formatted as "Error: {exception_message}"
+                # This ensures runtime and replay return the same error messages
                 import traceback
-                logger.error(f"Tool execution error for '{tool_name}': {e}\n{traceback.format_exc()}")
-                raise HTTPException(status_code=500, detail=str(e))
+                logger.info(f"Tool '{tool_name}' raised exception: {e}")
+                logger.debug(f"Traceback:\n{traceback.format_exc()}")
+                error_message = f"Error: {e}"
+                return {"result": error_message}
 
         @self.app.get("/policy")
         async def get_policy():

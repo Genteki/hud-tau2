@@ -18,11 +18,6 @@ from openai import AsyncOpenAI
 
 from env import env
 from env import init
-from server.agent_loop import multi_agent_loop
-
-# Disable LiteLLM info logging
-logging.getLogger("LiteLLM").setLevel(logging.WARNING)
-logging.getLogger("litellm").setLevel(logging.WARNING)
 
 # Use HUD inference gateway - see all models at https://hud.ai/models
 # Get API key from environment or HUD settings
@@ -56,64 +51,36 @@ async def test_airline_scenario():
     if not client:
         print("Skipping: API key not set. Set HUD_API_KEY or OPENAI_API_KEY environment variable.")
         return
-
-    task = env("tau2",
-        domain="airline",
-        task_id=0,
-        task_split="base"
-    )
-
-    async with hud.eval(task) as ctx:
-        messages = [{"role": "user", "content": ctx.prompt}]
-
-        while True:
-            response = await client.chat.completions.create(
-                model="gpt-5",  # https://hud.ai/models
-                messages=messages,
-                tools=ctx.as_openai_chat_tools(),
-            )
-            msg = response.choices[0].message
-
-            if not msg.tool_calls:
-                break
-
-            messages.append(msg)
-            for tc in msg.tool_calls:
-                result = await ctx.call_tool(tc)
-                messages.append(result)
+    await init()
+    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/airline/test10.json")
+    # Bind to local environment and run
+    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
+    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
 
 
 async def test_retail_scenario():
     """Test retail scenario with OpenAIChatAgent."""
-    print("\n=== Test 3: Retail Scenario (OpenAIChatAgent) ===")
-
-    task = env("tau2",
-        domain="retail",
-        task_id=0,
-        task_split="base"
-    )
-
-    async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/model
-        # await agent.run(ctx, max_steps=30)
-        await multi_agent_loop(ctx, agent, max_steps=30)
-
+    print("\n=== Test 2: Retail Scenario 10 tasks ===")
+    await init()
+    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/retail/test10.json")
+    # Bind to local environment and run
+    bound_tasks = [env(t.scenario, **t.args) for t in tasks[9:]]
+    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
 
 async def test_telecom_scenario():
     """Test telecom scenario with OpenAIChatAgent."""
-    print("\n=== Test 4: Telecom Scenario (OpenAIChatAgent) ===")
-
-    task = env("tau2",
-        domain="telecom",
-        task_id="[mms_issue]airplane_mode_on|bad_network_preference|bad_wifi_calling|break_apn_mms_setting|break_app_sms_permission|data_mode_off|data_usage_exceeded|unseat_sim_card|user_abroad_roaming_enabled_off[PERSONA:None]",
-        task_split="base"
-    )
-
-    async with hud.eval(task) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")  # https://hud.ai/models
-        # await agent.run(ctx, max_steps=30)
-        await multi_agent_loop(ctx, agent, max_steps=30)
-
+    print("\n=== Test 4: Telecom Scenario 10 tasks (OpenAIChatAgent) ===")
+    await init()
+    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/telecom/test10.json")
+    # Bind to local environment and run
+    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
+    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-5")
+        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
 
 async def test_from_json():
     """Load tasks from JSON and run locally."""
@@ -145,17 +112,17 @@ async def test_hud_run():
     # Bind to local environment and run
     bound_tasks = [env(t.scenario, **t.args) for t in tasks]
 
-    async with hud.eval(bound_tasks) as ctx:
+    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
         agent = OpenAIChatAgent.create(model="gpt-5")
         # from hud.agents.claude import ClaudeAgent
         # agent = ClaudeAgent.create(
-        #     model="claude-sonnet-4-5",
+        #     model="claude-haiku-4-5",
         # )
-        await agent.run(ctx, max_steps=30)
+        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
 
 
 async def main():
-    # Set up comprehensive logging to file
+    # Set up file logging for debugging (all output goes to log file)
     log_file = "log"
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.DEBUG)
@@ -164,21 +131,12 @@ async def main():
         datefmt='%Y-%m-%d %H:%M:%S'
     ))
 
-    # Add file handler to relevant loggers
-    loggers_to_capture = [
-        'hud.agents.base',
-        'server.scenarios',
-        'server.tools',
-        'server.state',
-        'tau2.environment.environment',
-        'tau2.evaluator',
-        'tau2.user.user_simulator',
-    ]
+    # Add file handler to root logger to capture everything
+    logging.getLogger().addHandler(file_handler)
 
-    for logger_name in loggers_to_capture:
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(file_handler)
+    # Also add to loguru (tau2's logger) for file output
+    from loguru import logger as tau2_logger
+    tau2_logger.add(log_file, level="DEBUG", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}")
 
     print("TAU2-Bench Environment - Local Test")
     print("=" * 50)
@@ -197,7 +155,6 @@ async def main():
     # await test_retail_scenario()
     # await test_telecom_scenario()
     await test_hud_run()
-    # await test_from_json()
 
 if __name__ == "__main__":
     asyncio.run(main())
