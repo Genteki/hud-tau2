@@ -1,14 +1,14 @@
 version: '1.3'
 images:
-  local: tau2:0.1.29
-  full: tau2:0.1.29@sha256:1c0bad5be3a4f559043d454bb53022e400ae9b798c37d4a67c7b77732a59a445
+  local: tau2:0.1.33
+  full: tau2:0.1.33@sha256:9d7aa1088cd3d32126435e0605b2d90e715cf671191b34f5e7103d37bfe590ec
   pushed: null
 build:
-  generatedAt: 2025-12-30T19:03:02.458016+00:00Z
-  hudVersion: 0.5.0
+  generatedAt: 2026-01-20T04:47:20.918043+00:00Z
+  hudVersion: 0.5.13
   directory: hud-tau2
-  version: 0.1.29
-  sourceHash: 0dc2d17fe3ddcf354989211158d68eb7f53d06f76cd070d0ac860efdd69f3fee
+  version: 0.1.33
+  sourceHash: d9dc27c355b4c4e20558dddab6c06ac7762762f1a056a1bc0669f1a29092ee7b
   baseImage: python:3.12-slim
   platform: linux/amd64
   sourceFiles:
@@ -35,111 +35,14 @@ build:
   - server/tools/http_tool.py
   - server/tools/test_http_tool.py
 environment:
-  initializeMs: 7022
-  toolCount: 3
+  initializeMs: 5318
+  toolCount: 0
   runtime:
     python: 3.12.12
     cuda: null
     cudnn: null
     pytorch: null
-  internalToolCount: 2
-tools:
-- name: _hud_submit
-  description: "Submit the agent's answer for a scenario's evaluate phase.\n\nInternal\
-    \ tool - called by Environment.submit() on connected hubs.\n\nArgs:\n    scenario:\
-    \ Name of the scenario (without env prefix)\n    answer: The agent's answer/result\
-    \ to submit"
-  inputSchema:
-    properties:
-      scenario:
-        type: string
-      answer:
-        type: string
-    required:
-    - scenario
-    - answer
-    type: object
-- name: setup
-  description: "Call internal 'setup' functions. Available tools:\n\n\u2022 Name:\
-    \ load (Complete setup: load domain, set task, and initialize environment.\n\n\
-    Args:\n    domain: The domain to use (airline, retail, telecom, or mock)\n   \
-    \ task_id: The task ID to load\n    task_split: Optional task split name (e.g.,\
-    \ \"base\", \"train\", \"test\")\n    solo_mode: Whether to run in solo mode (default:\
-    \ False)\n    start_conversation: If True and solo_mode=False, send initial greeting\
-    \ (default: False)\n    initial_greeting: The greeting to send if start_conversation=True\n\
-    \nReturns:\n    Setup status with task and environment information, plus user's\
-    \ first response if start_conversation=True)\n  Arguments: domain (string), task_id\
-    \ (string), task_split (string | null) (optional), solo_mode (boolean) (optional),\
-    \ start_conversation (boolean) (optional), initial_greeting (string) (optional)"
-  inputSchema:
-    type: object
-    properties:
-      name:
-        type: string
-        description: 'Name of the internal tool to call. Must be one of: load'
-        enum:
-        - load
-      arguments:
-        anyOf:
-        - type: object
-          description: Arguments object to pass to the internal tool
-        - type: string
-          description: JSON string of arguments to pass to the internal tool
-        description: Arguments to pass to the internal tool. Can be an object or JSON
-          string. See description for details on each tool's parameters.
-    required:
-    - name
-    - arguments
-    examples:
-    - name: load
-      arguments:
-        domain: <domain>
-        task_id: <task_id>
-        task_split: null
-        solo_mode: true
-        start_conversation: true
-        initial_greeting: <initial_greeting>
-  internalTools:
-  - load
-- name: evaluate
-  description: "Call internal 'evaluate' functions. Available tools:\n\n\u2022 Name:\
-    \ evaluate_task (Evaluate the current task based on the conversation history.\n\
-    \nArgs:\n    evaluation_type: Type of evaluation to run\n        - \"env\": Environment\
-    \ state evaluation\n        - \"action\": Action completion evaluation\n     \
-    \   - \"communicate\": Communication evaluation\n        - \"nl_assertions\":\
-    \ Natural language assertions\n        - \"all\": All evaluation types combined\
-    \ (default)\n\nReturns:\n    EvaluationResult with reward, done status, and feedback)\n\
-    \  Arguments: evaluation_type (string) (optional)"
-  inputSchema:
-    type: object
-    properties:
-      name:
-        type: string
-        description: 'Name of the internal tool to call. Must be one of: evaluate_task'
-        enum:
-        - evaluate_task
-      arguments:
-        anyOf:
-        - type: object
-          description: Arguments object to pass to the internal tool
-        - type: string
-          description: JSON string of arguments to pass to the internal tool
-        description: Arguments to pass to the internal tool. Can be an object or JSON
-          string. See description for details on each tool's parameters.
-    required:
-    - name
-    - arguments
-    examples:
-    - name: evaluate_task
-      arguments:
-        evaluation_type: <evaluation_type>
-  internalTools:
-  - evaluate_task
-hubTools:
-  setup:
-  - load
-  evaluate:
-  - evaluate_task
+  internalToolCount: 0
 prompts:
 - name: tau2-bench:tau2
   description: "[Setup] \n        Run a TAU2-bench customer service task.\n\n    \
@@ -188,77 +91,77 @@ prompts:
       \    yield 0.0\n                return\n\n            initial_greeting = result.get(\"\
       initial_greeting\", \"Hi! How can I help you today?\")\n\n            # Also\
       \ update global tau2_task state (for message tracking and evaluation)\n    \
-      \        tau2_task = get_tau2_task()\n            task_loader = registry.get_tasks_loader(domain)\n\
-      \            tasks = task_loader(task_split_name=task_split)\n            tau2_task.domain\
-      \ = domain\n            tau2_task.tasks = tasks\n            tau2_task.set_task(str(task_id))\n\
-      \            tau2_task.solo_mode = False\n\n            logger.info(f\"Scenario\
-      \ initialized: domain={domain}, task_id={task_id}, split={task_split}\")\n\n\
-      \            # Dynamically load tools for this domain from environment server\n\
-      \            from server.tools.http_tool import create_http_tools_from_server,\
-      \ get_http_tool_registry\n\n            # Clear old domain tools from registry\n\
-      \            tool_registry = get_http_tool_registry()\n            tool_registry.clear()\n\
-      \n            # Load new tools for current domain\n            http_tools =\
-      \ create_http_tools_from_server()\n\n            # Add tools to environment\
-      \ (this registers them with the MCP server)\n            # Use the env parameter\
-      \ from register_tau2_scenarios closure\n            for tool_name, http_tool\
-      \ in http_tools.items():\n                env.add_tool(http_tool)\n\n      \
-      \      logger.info(f\"Loaded {len(http_tools)} tools for domain '{domain}'\"\
-      )\n\n            # Initialize conversation tool with the task scenario\n   \
-      \         from server.tools.conversation import ConversationTool\n         \
-      \   ConversationTool.initialize_global(tau2_task)\n            logger.info(\"\
-      Initialized conversation tool with user simulator\")\n\n        except Exception\
+      \        tau2_task = get_tau2_task()\n\n            # Clear previous task state\
+      \ to avoid contamination\n            prev_msg_count = len(tau2_task.messages)\n\
+      \            tau2_task.clear_messages()\n            tau2_task.reset_tokens()\n\
+      \            if prev_msg_count > 0:\n                logger.info(f\"Cleared\
+      \ {prev_msg_count} messages from previous task\")\n\n            task_loader\
+      \ = registry.get_tasks_loader(domain)\n            tasks = task_loader(task_split_name=task_split)\n\
+      \            tau2_task.domain = domain\n            tau2_task.tasks = tasks\n\
+      \            tau2_task.set_task(str(task_id))\n            tau2_task.solo_mode\
+      \ = False\n\n            logger.info(f\"Scenario initialized: domain={domain},\
+      \ task_id={task_id}, split={task_split}\")\n\n            # Dynamically load\
+      \ tools for this domain from environment server\n            from server.tools.http_tool\
+      \ import create_http_tools_from_server, get_http_tool_registry\n\n         \
+      \   # Clear old domain tools from registry\n            tool_registry = get_http_tool_registry()\n\
+      \            tool_registry.clear()\n\n            # Load new tools for current\
+      \ domain\n            http_tools = create_http_tools_from_server()\n\n     \
+      \       # Add tools to environment (this registers them with the MCP server)\n\
+      \            # Use the env parameter from register_tau2_scenarios closure\n\
+      \            for tool_name, http_tool in http_tools.items():\n             \
+      \   env.add_tool(http_tool)\n\n            logger.info(f\"Loaded {len(http_tools)}\
+      \ tools for domain '{domain}'\")\n\n            # Initialize UserSimulator for\
+      \ conversation loop\n            from server.tools.conversation import initialize_user_simulator\n\
+      \            initialize_user_simulator(tau2_task)\n            logger.info(\"\
+      Initialized UserSimulator for conversation loop\")\n\n        except Exception\
       \ as e:\n            logger.error(f\"Setup failed: {e}\")\n            import\
       \ traceback\n            traceback.print_exc()\n            yield f\"Setup failed:\
       \ {e}\"\n            yield 0.0\n            return\n\n        # ===== PROMPT\
       \ (first yield) =====\n        # Provide the task prompt to the agent with policy\
-      \ (like original tau2-bench)\n        # Get policy from environment server\n\
+      \ (matching tau2-bench structure)\n        # Get policy from environment server\n\
       \        try:\n            policy = http_client.get_policy()\n        except\
       \ Exception as e:\n            logger.warning(f\"Could not get policy: {e}\"\
-      )\n            policy = \"No specific policy available.\"\n\n#         prompt\
-      \ = f\"\"\"You are a customer service agent for {domain}.\n\n# <instructions>\n\
-      # You are a customer service agent that helps the user according to the <policy>\
-      \ provided below.\n# In each turn you can either:\n# - Send a message to the\
-      \ user using the send_message tool.\n# - Make a tool call to check or modify\
-      \ data.\n# You cannot do both at the same time.\n\n# Try to be helpful and always\
-      \ follow the policy.\n# </instructions>\n\n# <policy>\n# {policy}\n# </policy>\n\
-      \n# The customer has sent you this message:\n# {initial_greeting}\n\n# Use the\
-      \ send_message tool to respond to the customer.\n# \"\"\"\n        prompt =\
-      \ f\"\"\"<instructions>\nYou are a customer service agent that helps the user\
-      \ according to the <policy> provided below.\nIn each turn you can either:\n\
-      - Send a message to the user (by providing text in your response).\n- Make a\
-      \ tool call to check or modify data.\nYou cannot do both at the same time.\n\
-      \nTry to be helpful and always follow the policy.\n</instructions>\n\n<policy>\n\
-      {policy}\n</policy>\n\nThe customer has sent you this message:\n{initial_greeting}\n\
-      \nPlease respond to the customer.\"\"\"\n\n        # Yield the prompt and let\
-      \ the agent interact\n        # The answer is not used since tau2 evaluates\
-      \ the full conversation trajectory\n        _ = yield prompt\n\n        # =====\
-      \ EVALUATE SECTION =====\n        # Evaluate the conversation using TAU2-bench's\
-      \ evaluation (directly, not via tool call)\n        logger.info(\"Evaluating\
-      \ tau2 task completion\")\n\n        try:\n            tau2_task = get_tau2_task()\n\
-      \n            # Log all messages in the trajectory for debugging\n         \
-      \   logger.info(f\"[EVAL] Starting evaluation with {len(tau2_task.messages)}\
-      \ messages in trajectory\")\n            for i, msg in enumerate(tau2_task.messages):\n\
-      \                msg_type = type(msg).__name__\n                if hasattr(msg,\
-      \ 'tool_calls') and msg.tool_calls:\n                    logger.debug(f\"[EVAL]\
-      \ Message {i}: {msg_type} with {len(msg.tool_calls)} tool calls\")\n       \
-      \             for tc in msg.tool_calls:\n                        logger.debug(f\"\
-      [EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor}, Args: {tc.arguments}\"\
-      )\n                elif hasattr(msg, 'content'):\n                    content_preview\
-      \ = msg.content[:100] if msg.content else \"None\"\n                    logger.debug(f\"\
-      [EVAL] Message {i}: {msg_type}, Content: {content_preview}\")\n\n          \
-      \  # Run tau2-bench evaluation (inline, same as evaluate/eval.py)\n        \
-      \    from tau2.evaluator.evaluator import evaluate_simulation, EvaluationType\n\
-      \            from tau2.data_model.simulation import SimulationRun, TerminationReason\n\
-      \            from tau2.utils.utils import get_now\n            import uuid\n\
-      \n            # Validate task state\n            assert tau2_task.task is not\
-      \ None, \"Task not loaded\"\n            assert tau2_task.domain is not None,\
-      \ \"Domain not set\"\n\n            # Create SimulationRun from current state\n\
-      \            current_time = get_now()\n            simulation = SimulationRun(\n\
-      \                id=str(uuid.uuid4()),\n                task_id=tau2_task.task.id,\n\
-      \                start_time=current_time,\n                end_time=current_time,\n\
-      \                duration=0.0,\n                messages=tau2_task.messages,\n\
-      \                termination_reason=TerminationReason.AGENT_STOP,\n        \
-      \    )\n\n            # Run evaluation\n            reward_info = evaluate_simulation(\n\
+      )\n            policy = \"No specific policy available.\"\n\n        # System\
+      \ prompt with policy (matching tau2-bench's SYSTEM_PROMPT)\n        # Store\
+      \ in tau2_task so the conversation loop can set agent.system_prompt\n      \
+      \  system_prompt = f\"\"\"<instructions>\nYou are a customer service agent that\
+      \ helps the user according to the <policy> provided below.\nIn each turn you\
+      \ can either:\n- Send a message to the user (by providing text in your response).\n\
+      - Make a tool call to check or modify data.\nYou cannot do both at the same\
+      \ time.\n\nTry to be helpful and always follow the policy.\n</instructions>\n\
+      \n<policy>\n{policy}\n</policy>\"\"\"\n\n        tau2_task.system_prompt = system_prompt\n\
+      \        logger.info(\"Stored system prompt with policy in tau2_task\")\n\n\
+      \        # Initial user message (just the greeting, no policy)\n        prompt\
+      \ = f\"\"\"Greet the customer with message: {initial_greeting}\"\"\"\n\n   \
+      \     # Yield the prompt and let the agent interact\n        # The conversation\
+      \ loop will set agent.system_prompt from tau2_task.system_prompt\n        _\
+      \ = yield prompt\n\n        # ===== EVALUATE SECTION =====\n        # Evaluate\
+      \ the conversation using TAU2-bench's evaluation (directly, not via tool call)\n\
+      \        logger.info(\"Evaluating tau2 task completion\")\n\n        try:\n\
+      \            tau2_task = get_tau2_task()\n\n            # Log all messages in\
+      \ the trajectory for debugging\n            logger.info(f\"[EVAL] Starting evaluation\
+      \ with {len(tau2_task.messages)} messages in trajectory\")\n            # for\
+      \ i, msg in enumerate(tau2_task.messages):\n            #     msg_type = type(msg).__name__\n\
+      \            #     if hasattr(msg, 'tool_calls') and msg.tool_calls:\n     \
+      \       #         logger.debug(f\"[EVAL] Message {i}: {msg_type} with {len(msg.tool_calls)}\
+      \ tool calls\")\n            #         for tc in msg.tool_calls:\n         \
+      \   #             logger.debug(f\"[EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor},\
+      \ Args: {tc.arguments}\")\n            #     elif hasattr(msg, 'content'):\n\
+      \            #         content_preview = msg.content[:100] if msg.content else\
+      \ \"None\"\n            #         logger.debug(f\"[EVAL] Message {i}: {msg_type},\
+      \ Content: {content_preview}\")\n\n            # Run tau2-bench evaluation (inline,\
+      \ same as evaluate/eval.py)\n            from tau2.evaluator.evaluator import\
+      \ evaluate_simulation, EvaluationType\n            from tau2.data_model.simulation\
+      \ import SimulationRun, TerminationReason\n            from tau2.utils.utils\
+      \ import get_now\n            import uuid\n\n            # Validate task state\n\
+      \            assert tau2_task.task is not None, \"Task not loaded\"\n      \
+      \      assert tau2_task.domain is not None, \"Domain not set\"\n\n         \
+      \   # Create SimulationRun from current state\n            current_time = get_now()\n\
+      \            simulation = SimulationRun(\n                id=str(uuid.uuid4()),\n\
+      \                task_id=tau2_task.task.id,\n                start_time=current_time,\n\
+      \                end_time=current_time,\n                duration=0.0,\n   \
+      \             messages=tau2_task.messages,\n                termination_reason=TerminationReason.AGENT_STOP,\n\
+      \            )\n\n            # Run evaluation\n            reward_info = evaluate_simulation(\n\
       \                simulation=simulation,\n                task=tau2_task.task,\n\
       \                evaluation_type=EvaluationType.ALL,\n                solo_mode=tau2_task.solo_mode,\n\
       \                domain=tau2_task.domain,\n            )\n\n            reward\
@@ -270,15 +173,57 @@ prompts:
       \ value in reward_info.reward_breakdown.items():\n                    logger.info(f\"\
       \  {reward_type}: {value}\")\n\n            if reward_info.db_check:\n     \
       \           logger.info(f\"\\nDatabase Check: match={reward_info.db_check.db_match},\
-      \ reward={reward_info.db_check.db_reward}\")\n\n            if reward_info.env_assertions:\n\
-      \                logger.info(f\"\\nEnvironment Assertions: {len(reward_info.env_assertions)}\
-      \ checks\")\n                for i, check in enumerate(reward_info.env_assertions):\n\
-      \                    logger.info(f\"  [{i+1}] {check.env_assertion}: met={check.met},\
-      \ reward={check.reward}\")\n\n            if reward_info.action_checks:\n  \
-      \              logger.info(f\"\\nAction Checks: {len(reward_info.action_checks)}\
-      \ checks\")\n                for i, check in enumerate(reward_info.action_checks):\n\
-      \                    logger.info(f\"  [{i+1}] {check.action}: match={check.action_match},\
-      \ reward={check.action_reward}\")\n\n            if reward_info.nl_assertions:\n\
+      \ reward={reward_info.db_check.db_reward}\")\n\n                # Show expected\
+      \ vs actual database state if mismatch\n                if not reward_info.db_check.db_match\
+      \ and tau2_task.environment:\n                    try:\n                   \
+      \     # Get actual database state\n                        actual_agent_db_hash\
+      \ = tau2_task.environment.get_db_hash()\n                        actual_user_db_hash\
+      \ = tau2_task.environment.get_user_db_hash()\n\n                        # Compute\
+      \ expected state by replaying golden actions\n                        from tau2.environment.environment\
+      \ import Environment\n                        expected_env = Environment(domain=tau2_task.domain)\n\
+      \                        if tau2_task.task.initial_state:\n                \
+      \            expected_env.set_state(\n                                initialization_data=tau2_task.task.initial_state.initialization_data,\n\
+      \                                initialization_actions=tau2_task.task.initial_state.initialization_actions,\n\
+      \                                message_history=[]\n                      \
+      \      )\n\n                        # Run golden actions\n                 \
+      \       if tau2_task.task.evaluation_criteria and tau2_task.task.evaluation_criteria.actions:\n\
+      \                            for action in tau2_task.task.evaluation_criteria.actions:\n\
+      \                                try:\n                                    expected_env.make_tool_call(\n\
+      \                                        tool_name=action.name,\n          \
+      \                              requestor=action.requestor,\n               \
+      \                         **action.arguments,\n                            \
+      \        )\n                                except Exception:\n            \
+      \                        pass\n\n                        expected_agent_db_hash\
+      \ = expected_env.get_db_hash()\n                        expected_user_db_hash\
+      \ = expected_env.get_user_db_hash()\n\n                        logger.info(f\"\
+      \  Agent DB - Expected hash: {expected_agent_db_hash}, Actual hash: {actual_agent_db_hash}\"\
+      )\n                        logger.info(f\"  User DB  - Expected hash: {expected_user_db_hash},\
+      \ Actual hash: {actual_user_db_hash}\")\n\n                        # Show actual\
+      \ database content if available\n                        if tau2_task.environment.tools:\n\
+      \                            agent_db = tau2_task.environment.tools.get_db()\n\
+      \                            if agent_db:\n                                logger.info(f\"\
+      \  Actual Agent DB: {agent_db.model_dump()}\")\n                        if tau2_task.environment.user_tools:\n\
+      \                            user_db = tau2_task.environment.user_tools.get_db()\n\
+      \                            if user_db:\n                                logger.info(f\"\
+      \  Actual User DB: {user_db.model_dump()}\")\n\n                    except Exception\
+      \ as e:\n                        logger.debug(f\"Could not show database details:\
+      \ {e}\")\n\n            if reward_info.env_assertions:\n                logger.info(f\"\
+      \\nEnvironment Assertions: {len(reward_info.env_assertions)} checks\")\n   \
+      \             for i, check in enumerate(reward_info.env_assertions):\n     \
+      \               # Show assertion function and expected value\n             \
+      \       env_assert = check.env_assertion\n                    func_info = f\"\
+      {env_assert.env_type}.{env_assert.func_name}\"\n                    if env_assert.arguments:\n\
+      \                        args_str = \", \".join(f'{k}={v}' for k, v in env_assert.arguments.items())\n\
+      \                        func_info += f\"({args_str})\"\n                  \
+      \  logger.info(f\"  [{i+1}] {func_info}: met={check.met}, reward={check.reward}\"\
+      )\n\n            if reward_info.action_checks:\n                logger.info(f\"\
+      \\nAction Checks: {len(reward_info.action_checks)} checks\")\n             \
+      \   for i, check in enumerate(reward_info.action_checks):\n                \
+      \    # Compact format: Action 1: requestor.action_name(args) -- reward: X.X\n\
+      \                    action = check.action\n                    args_str = \"\
+      , \".join(f'{k}=\"{v}\"' if isinstance(v, str) else f'{k}={v}' for k, v in action.arguments.items())\n\
+      \                    logger.info(f\"  Action {i+1}: {action.requestor}.{action.name}({args_str})\
+      \ -- reward: {check.action_reward}\")\n\n            if reward_info.nl_assertions:\n\
       \                logger.info(f\"\\nNL Assertions: {len(reward_info.nl_assertions)}\
       \ checks\")\n                for i, check in enumerate(reward_info.nl_assertions):\n\
       \                    logger.info(f\"  [{i+1}] {check.nl_assertion}: met={check.met}\"\
@@ -290,8 +235,17 @@ prompts:
       )\n                    if check.justification:\n                        logger.info(f\"\
       \      Justification: {check.justification}\")\n\n            if reward_info.info:\n\
       \                logger.info(f\"\\nAdditional Info: {reward_info.info}\")\n\n\
-      \            logger.info(\"=\" * 60)\n\n        except Exception as e:\n   \
-      \         logger.error(f\"Evaluation failed: {e}\")\n            import traceback\n\
+      \            # Log token usage summary\n            logger.info(f\"\\nToken\
+      \ Usage:\")\n            logger.info(f\"  Input tokens: {tau2_task.total_input_tokens:,}\"\
+      )\n            logger.info(f\"  Output tokens: {tau2_task.total_output_tokens:,}\"\
+      )\n            if tau2_task.total_cache_creation_tokens > 0:\n             \
+      \   logger.info(f\"  Cache creation tokens: {tau2_task.total_cache_creation_tokens:,}\"\
+      )\n            if tau2_task.total_cache_read_tokens > 0:\n                logger.info(f\"\
+      \  Cache read tokens: {tau2_task.total_cache_read_tokens:,}\")\n           \
+      \ total_tokens = tau2_task.total_input_tokens + tau2_task.total_output_tokens\n\
+      \            logger.info(f\"  Total tokens: {total_tokens:,}\")\n\n        \
+      \    logger.info(\"=\" * 60)\n\n        except Exception as e:\n           \
+      \ logger.error(f\"Evaluation failed: {e}\")\n            import traceback\n\
       \            traceback.print_exc()\n            reward = 0.0\n\n        # =====\
       \ REWARD (second yield) =====\n        yield reward\n"
     arguments:
@@ -340,77 +294,77 @@ resources:
       \    yield 0.0\n                return\n\n            initial_greeting = result.get(\"\
       initial_greeting\", \"Hi! How can I help you today?\")\n\n            # Also\
       \ update global tau2_task state (for message tracking and evaluation)\n    \
-      \        tau2_task = get_tau2_task()\n            task_loader = registry.get_tasks_loader(domain)\n\
-      \            tasks = task_loader(task_split_name=task_split)\n            tau2_task.domain\
-      \ = domain\n            tau2_task.tasks = tasks\n            tau2_task.set_task(str(task_id))\n\
-      \            tau2_task.solo_mode = False\n\n            logger.info(f\"Scenario\
-      \ initialized: domain={domain}, task_id={task_id}, split={task_split}\")\n\n\
-      \            # Dynamically load tools for this domain from environment server\n\
-      \            from server.tools.http_tool import create_http_tools_from_server,\
-      \ get_http_tool_registry\n\n            # Clear old domain tools from registry\n\
-      \            tool_registry = get_http_tool_registry()\n            tool_registry.clear()\n\
-      \n            # Load new tools for current domain\n            http_tools =\
-      \ create_http_tools_from_server()\n\n            # Add tools to environment\
-      \ (this registers them with the MCP server)\n            # Use the env parameter\
-      \ from register_tau2_scenarios closure\n            for tool_name, http_tool\
-      \ in http_tools.items():\n                env.add_tool(http_tool)\n\n      \
-      \      logger.info(f\"Loaded {len(http_tools)} tools for domain '{domain}'\"\
-      )\n\n            # Initialize conversation tool with the task scenario\n   \
-      \         from server.tools.conversation import ConversationTool\n         \
-      \   ConversationTool.initialize_global(tau2_task)\n            logger.info(\"\
-      Initialized conversation tool with user simulator\")\n\n        except Exception\
+      \        tau2_task = get_tau2_task()\n\n            # Clear previous task state\
+      \ to avoid contamination\n            prev_msg_count = len(tau2_task.messages)\n\
+      \            tau2_task.clear_messages()\n            tau2_task.reset_tokens()\n\
+      \            if prev_msg_count > 0:\n                logger.info(f\"Cleared\
+      \ {prev_msg_count} messages from previous task\")\n\n            task_loader\
+      \ = registry.get_tasks_loader(domain)\n            tasks = task_loader(task_split_name=task_split)\n\
+      \            tau2_task.domain = domain\n            tau2_task.tasks = tasks\n\
+      \            tau2_task.set_task(str(task_id))\n            tau2_task.solo_mode\
+      \ = False\n\n            logger.info(f\"Scenario initialized: domain={domain},\
+      \ task_id={task_id}, split={task_split}\")\n\n            # Dynamically load\
+      \ tools for this domain from environment server\n            from server.tools.http_tool\
+      \ import create_http_tools_from_server, get_http_tool_registry\n\n         \
+      \   # Clear old domain tools from registry\n            tool_registry = get_http_tool_registry()\n\
+      \            tool_registry.clear()\n\n            # Load new tools for current\
+      \ domain\n            http_tools = create_http_tools_from_server()\n\n     \
+      \       # Add tools to environment (this registers them with the MCP server)\n\
+      \            # Use the env parameter from register_tau2_scenarios closure\n\
+      \            for tool_name, http_tool in http_tools.items():\n             \
+      \   env.add_tool(http_tool)\n\n            logger.info(f\"Loaded {len(http_tools)}\
+      \ tools for domain '{domain}'\")\n\n            # Initialize UserSimulator for\
+      \ conversation loop\n            from server.tools.conversation import initialize_user_simulator\n\
+      \            initialize_user_simulator(tau2_task)\n            logger.info(\"\
+      Initialized UserSimulator for conversation loop\")\n\n        except Exception\
       \ as e:\n            logger.error(f\"Setup failed: {e}\")\n            import\
       \ traceback\n            traceback.print_exc()\n            yield f\"Setup failed:\
       \ {e}\"\n            yield 0.0\n            return\n\n        # ===== PROMPT\
       \ (first yield) =====\n        # Provide the task prompt to the agent with policy\
-      \ (like original tau2-bench)\n        # Get policy from environment server\n\
+      \ (matching tau2-bench structure)\n        # Get policy from environment server\n\
       \        try:\n            policy = http_client.get_policy()\n        except\
       \ Exception as e:\n            logger.warning(f\"Could not get policy: {e}\"\
-      )\n            policy = \"No specific policy available.\"\n\n#         prompt\
-      \ = f\"\"\"You are a customer service agent for {domain}.\n\n# <instructions>\n\
-      # You are a customer service agent that helps the user according to the <policy>\
-      \ provided below.\n# In each turn you can either:\n# - Send a message to the\
-      \ user using the send_message tool.\n# - Make a tool call to check or modify\
-      \ data.\n# You cannot do both at the same time.\n\n# Try to be helpful and always\
-      \ follow the policy.\n# </instructions>\n\n# <policy>\n# {policy}\n# </policy>\n\
-      \n# The customer has sent you this message:\n# {initial_greeting}\n\n# Use the\
-      \ send_message tool to respond to the customer.\n# \"\"\"\n        prompt =\
-      \ f\"\"\"<instructions>\nYou are a customer service agent that helps the user\
-      \ according to the <policy> provided below.\nIn each turn you can either:\n\
-      - Send a message to the user (by providing text in your response).\n- Make a\
-      \ tool call to check or modify data.\nYou cannot do both at the same time.\n\
-      \nTry to be helpful and always follow the policy.\n</instructions>\n\n<policy>\n\
-      {policy}\n</policy>\n\nThe customer has sent you this message:\n{initial_greeting}\n\
-      \nPlease respond to the customer.\"\"\"\n\n        # Yield the prompt and let\
-      \ the agent interact\n        # The answer is not used since tau2 evaluates\
-      \ the full conversation trajectory\n        _ = yield prompt\n\n        # =====\
-      \ EVALUATE SECTION =====\n        # Evaluate the conversation using TAU2-bench's\
-      \ evaluation (directly, not via tool call)\n        logger.info(\"Evaluating\
-      \ tau2 task completion\")\n\n        try:\n            tau2_task = get_tau2_task()\n\
-      \n            # Log all messages in the trajectory for debugging\n         \
-      \   logger.info(f\"[EVAL] Starting evaluation with {len(tau2_task.messages)}\
-      \ messages in trajectory\")\n            for i, msg in enumerate(tau2_task.messages):\n\
-      \                msg_type = type(msg).__name__\n                if hasattr(msg,\
-      \ 'tool_calls') and msg.tool_calls:\n                    logger.debug(f\"[EVAL]\
-      \ Message {i}: {msg_type} with {len(msg.tool_calls)} tool calls\")\n       \
-      \             for tc in msg.tool_calls:\n                        logger.debug(f\"\
-      [EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor}, Args: {tc.arguments}\"\
-      )\n                elif hasattr(msg, 'content'):\n                    content_preview\
-      \ = msg.content[:100] if msg.content else \"None\"\n                    logger.debug(f\"\
-      [EVAL] Message {i}: {msg_type}, Content: {content_preview}\")\n\n          \
-      \  # Run tau2-bench evaluation (inline, same as evaluate/eval.py)\n        \
-      \    from tau2.evaluator.evaluator import evaluate_simulation, EvaluationType\n\
-      \            from tau2.data_model.simulation import SimulationRun, TerminationReason\n\
-      \            from tau2.utils.utils import get_now\n            import uuid\n\
-      \n            # Validate task state\n            assert tau2_task.task is not\
-      \ None, \"Task not loaded\"\n            assert tau2_task.domain is not None,\
-      \ \"Domain not set\"\n\n            # Create SimulationRun from current state\n\
-      \            current_time = get_now()\n            simulation = SimulationRun(\n\
-      \                id=str(uuid.uuid4()),\n                task_id=tau2_task.task.id,\n\
-      \                start_time=current_time,\n                end_time=current_time,\n\
-      \                duration=0.0,\n                messages=tau2_task.messages,\n\
-      \                termination_reason=TerminationReason.AGENT_STOP,\n        \
-      \    )\n\n            # Run evaluation\n            reward_info = evaluate_simulation(\n\
+      )\n            policy = \"No specific policy available.\"\n\n        # System\
+      \ prompt with policy (matching tau2-bench's SYSTEM_PROMPT)\n        # Store\
+      \ in tau2_task so the conversation loop can set agent.system_prompt\n      \
+      \  system_prompt = f\"\"\"<instructions>\nYou are a customer service agent that\
+      \ helps the user according to the <policy> provided below.\nIn each turn you\
+      \ can either:\n- Send a message to the user (by providing text in your response).\n\
+      - Make a tool call to check or modify data.\nYou cannot do both at the same\
+      \ time.\n\nTry to be helpful and always follow the policy.\n</instructions>\n\
+      \n<policy>\n{policy}\n</policy>\"\"\"\n\n        tau2_task.system_prompt = system_prompt\n\
+      \        logger.info(\"Stored system prompt with policy in tau2_task\")\n\n\
+      \        # Initial user message (just the greeting, no policy)\n        prompt\
+      \ = f\"\"\"Greet the customer with message: {initial_greeting}\"\"\"\n\n   \
+      \     # Yield the prompt and let the agent interact\n        # The conversation\
+      \ loop will set agent.system_prompt from tau2_task.system_prompt\n        _\
+      \ = yield prompt\n\n        # ===== EVALUATE SECTION =====\n        # Evaluate\
+      \ the conversation using TAU2-bench's evaluation (directly, not via tool call)\n\
+      \        logger.info(\"Evaluating tau2 task completion\")\n\n        try:\n\
+      \            tau2_task = get_tau2_task()\n\n            # Log all messages in\
+      \ the trajectory for debugging\n            logger.info(f\"[EVAL] Starting evaluation\
+      \ with {len(tau2_task.messages)} messages in trajectory\")\n            # for\
+      \ i, msg in enumerate(tau2_task.messages):\n            #     msg_type = type(msg).__name__\n\
+      \            #     if hasattr(msg, 'tool_calls') and msg.tool_calls:\n     \
+      \       #         logger.debug(f\"[EVAL] Message {i}: {msg_type} with {len(msg.tool_calls)}\
+      \ tool calls\")\n            #         for tc in msg.tool_calls:\n         \
+      \   #             logger.debug(f\"[EVAL]   - Tool: {tc.name}, Requestor: {tc.requestor},\
+      \ Args: {tc.arguments}\")\n            #     elif hasattr(msg, 'content'):\n\
+      \            #         content_preview = msg.content[:100] if msg.content else\
+      \ \"None\"\n            #         logger.debug(f\"[EVAL] Message {i}: {msg_type},\
+      \ Content: {content_preview}\")\n\n            # Run tau2-bench evaluation (inline,\
+      \ same as evaluate/eval.py)\n            from tau2.evaluator.evaluator import\
+      \ evaluate_simulation, EvaluationType\n            from tau2.data_model.simulation\
+      \ import SimulationRun, TerminationReason\n            from tau2.utils.utils\
+      \ import get_now\n            import uuid\n\n            # Validate task state\n\
+      \            assert tau2_task.task is not None, \"Task not loaded\"\n      \
+      \      assert tau2_task.domain is not None, \"Domain not set\"\n\n         \
+      \   # Create SimulationRun from current state\n            current_time = get_now()\n\
+      \            simulation = SimulationRun(\n                id=str(uuid.uuid4()),\n\
+      \                task_id=tau2_task.task.id,\n                start_time=current_time,\n\
+      \                end_time=current_time,\n                duration=0.0,\n   \
+      \             messages=tau2_task.messages,\n                termination_reason=TerminationReason.AGENT_STOP,\n\
+      \            )\n\n            # Run evaluation\n            reward_info = evaluate_simulation(\n\
       \                simulation=simulation,\n                task=tau2_task.task,\n\
       \                evaluation_type=EvaluationType.ALL,\n                solo_mode=tau2_task.solo_mode,\n\
       \                domain=tau2_task.domain,\n            )\n\n            reward\
@@ -422,15 +376,57 @@ resources:
       \ value in reward_info.reward_breakdown.items():\n                    logger.info(f\"\
       \  {reward_type}: {value}\")\n\n            if reward_info.db_check:\n     \
       \           logger.info(f\"\\nDatabase Check: match={reward_info.db_check.db_match},\
-      \ reward={reward_info.db_check.db_reward}\")\n\n            if reward_info.env_assertions:\n\
-      \                logger.info(f\"\\nEnvironment Assertions: {len(reward_info.env_assertions)}\
-      \ checks\")\n                for i, check in enumerate(reward_info.env_assertions):\n\
-      \                    logger.info(f\"  [{i+1}] {check.env_assertion}: met={check.met},\
-      \ reward={check.reward}\")\n\n            if reward_info.action_checks:\n  \
-      \              logger.info(f\"\\nAction Checks: {len(reward_info.action_checks)}\
-      \ checks\")\n                for i, check in enumerate(reward_info.action_checks):\n\
-      \                    logger.info(f\"  [{i+1}] {check.action}: match={check.action_match},\
-      \ reward={check.action_reward}\")\n\n            if reward_info.nl_assertions:\n\
+      \ reward={reward_info.db_check.db_reward}\")\n\n                # Show expected\
+      \ vs actual database state if mismatch\n                if not reward_info.db_check.db_match\
+      \ and tau2_task.environment:\n                    try:\n                   \
+      \     # Get actual database state\n                        actual_agent_db_hash\
+      \ = tau2_task.environment.get_db_hash()\n                        actual_user_db_hash\
+      \ = tau2_task.environment.get_user_db_hash()\n\n                        # Compute\
+      \ expected state by replaying golden actions\n                        from tau2.environment.environment\
+      \ import Environment\n                        expected_env = Environment(domain=tau2_task.domain)\n\
+      \                        if tau2_task.task.initial_state:\n                \
+      \            expected_env.set_state(\n                                initialization_data=tau2_task.task.initial_state.initialization_data,\n\
+      \                                initialization_actions=tau2_task.task.initial_state.initialization_actions,\n\
+      \                                message_history=[]\n                      \
+      \      )\n\n                        # Run golden actions\n                 \
+      \       if tau2_task.task.evaluation_criteria and tau2_task.task.evaluation_criteria.actions:\n\
+      \                            for action in tau2_task.task.evaluation_criteria.actions:\n\
+      \                                try:\n                                    expected_env.make_tool_call(\n\
+      \                                        tool_name=action.name,\n          \
+      \                              requestor=action.requestor,\n               \
+      \                         **action.arguments,\n                            \
+      \        )\n                                except Exception:\n            \
+      \                        pass\n\n                        expected_agent_db_hash\
+      \ = expected_env.get_db_hash()\n                        expected_user_db_hash\
+      \ = expected_env.get_user_db_hash()\n\n                        logger.info(f\"\
+      \  Agent DB - Expected hash: {expected_agent_db_hash}, Actual hash: {actual_agent_db_hash}\"\
+      )\n                        logger.info(f\"  User DB  - Expected hash: {expected_user_db_hash},\
+      \ Actual hash: {actual_user_db_hash}\")\n\n                        # Show actual\
+      \ database content if available\n                        if tau2_task.environment.tools:\n\
+      \                            agent_db = tau2_task.environment.tools.get_db()\n\
+      \                            if agent_db:\n                                logger.info(f\"\
+      \  Actual Agent DB: {agent_db.model_dump()}\")\n                        if tau2_task.environment.user_tools:\n\
+      \                            user_db = tau2_task.environment.user_tools.get_db()\n\
+      \                            if user_db:\n                                logger.info(f\"\
+      \  Actual User DB: {user_db.model_dump()}\")\n\n                    except Exception\
+      \ as e:\n                        logger.debug(f\"Could not show database details:\
+      \ {e}\")\n\n            if reward_info.env_assertions:\n                logger.info(f\"\
+      \\nEnvironment Assertions: {len(reward_info.env_assertions)} checks\")\n   \
+      \             for i, check in enumerate(reward_info.env_assertions):\n     \
+      \               # Show assertion function and expected value\n             \
+      \       env_assert = check.env_assertion\n                    func_info = f\"\
+      {env_assert.env_type}.{env_assert.func_name}\"\n                    if env_assert.arguments:\n\
+      \                        args_str = \", \".join(f'{k}={v}' for k, v in env_assert.arguments.items())\n\
+      \                        func_info += f\"({args_str})\"\n                  \
+      \  logger.info(f\"  [{i+1}] {func_info}: met={check.met}, reward={check.reward}\"\
+      )\n\n            if reward_info.action_checks:\n                logger.info(f\"\
+      \\nAction Checks: {len(reward_info.action_checks)} checks\")\n             \
+      \   for i, check in enumerate(reward_info.action_checks):\n                \
+      \    # Compact format: Action 1: requestor.action_name(args) -- reward: X.X\n\
+      \                    action = check.action\n                    args_str = \"\
+      , \".join(f'{k}=\"{v}\"' if isinstance(v, str) else f'{k}={v}' for k, v in action.arguments.items())\n\
+      \                    logger.info(f\"  Action {i+1}: {action.requestor}.{action.name}({args_str})\
+      \ -- reward: {check.action_reward}\")\n\n            if reward_info.nl_assertions:\n\
       \                logger.info(f\"\\nNL Assertions: {len(reward_info.nl_assertions)}\
       \ checks\")\n                for i, check in enumerate(reward_info.nl_assertions):\n\
       \                    logger.info(f\"  [{i+1}] {check.nl_assertion}: met={check.met}\"\
@@ -442,8 +438,17 @@ resources:
       )\n                    if check.justification:\n                        logger.info(f\"\
       \      Justification: {check.justification}\")\n\n            if reward_info.info:\n\
       \                logger.info(f\"\\nAdditional Info: {reward_info.info}\")\n\n\
-      \            logger.info(\"=\" * 60)\n\n        except Exception as e:\n   \
-      \         logger.error(f\"Evaluation failed: {e}\")\n            import traceback\n\
+      \            # Log token usage summary\n            logger.info(f\"\\nToken\
+      \ Usage:\")\n            logger.info(f\"  Input tokens: {tau2_task.total_input_tokens:,}\"\
+      )\n            logger.info(f\"  Output tokens: {tau2_task.total_output_tokens:,}\"\
+      )\n            if tau2_task.total_cache_creation_tokens > 0:\n             \
+      \   logger.info(f\"  Cache creation tokens: {tau2_task.total_cache_creation_tokens:,}\"\
+      )\n            if tau2_task.total_cache_read_tokens > 0:\n                logger.info(f\"\
+      \  Cache read tokens: {tau2_task.total_cache_read_tokens:,}\")\n           \
+      \ total_tokens = tau2_task.total_input_tokens + tau2_task.total_output_tokens\n\
+      \            logger.info(f\"  Total tokens: {total_tokens:,}\")\n\n        \
+      \    logger.info(\"=\" * 60)\n\n        except Exception as e:\n           \
+      \ logger.error(f\"Evaluation failed: {e}\")\n            import traceback\n\
       \            traceback.print_exc()\n            reward = 0.0\n\n        # =====\
       \ REWARD (second yield) =====\n        yield reward\n"
     arguments:

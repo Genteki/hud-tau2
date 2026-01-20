@@ -33,7 +33,7 @@ async def main():
             model=model,
             system_prompt=user_system_prompt(
                 user_scenario=tau2_task.user_scenario,
-                has_tools=True
+                user_tool_names=tau2_task.user_tool_names  # Auto-determines has_tools
             ),  # tau2 user simulation guidelines + scenario
             allowed_tools=tau2_task.user_tool_names  # Only user tools
         )

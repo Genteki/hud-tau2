@@ -17,17 +17,27 @@ USER_SYSTEM_PROMPT = """
 """.strip()
 
 
-def user_system_prompt(user_scenario, has_tools: bool = True) -> str:
+def user_system_prompt(user_scenario, user_tool_names=None) -> str:
     """
     Build user agent system prompt identical to tau2-bench's UserSimulator.
 
     Args:
         user_scenario: UserScenario object from tau2_task.task.user_scenario
-        has_tools: Whether the user has tools available (affects guidelines)
+        user_tool_names: List of user tool names (if None, automatically determined)
 
     Returns:
         System prompt string matching tau2-bench's UserSimulator
     """
+    # Determine if tools are available
+    # If user_tool_names is provided, check if non-empty
+    # Otherwise, assume no tools
+    if user_tool_names is None:
+        from server.state import get_tau2_task
+        tau2_task = get_tau2_task()
+        user_tool_names = tau2_task.user_tool_names if hasattr(tau2_task, 'user_tool_names') else []
+
+    has_tools = bool(user_tool_names and len(user_tool_names) > 0)
+
     # Create a temporary UserSimulator to get the guidelines
     # (guidelines differ based on whether tools are available)
     class TempSimulator(UserSimulator):
