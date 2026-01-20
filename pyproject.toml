@@ -5,7 +5,12 @@ description = "HUD MCP server for tau2-bench evaluation tasks"
 requires-python = ">=3.11"
 dependencies = [
     "hud-python",
-    "tau2"
+    "fastapi",
+    "google-api-python-client",
+    "google-auth",
+    "anthropic",
+    "google",
+    "google-genai"
 ]
 
 [build-system]

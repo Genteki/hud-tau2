@@ -7,20 +7,18 @@ Development workflow:
 The environment server provides domain tools via HTTP.
 This script uses the local env module for scenarios/tools.
 """
-import asyncio
+
 import os
+import asyncio
 import logging
-
 import hud
-from hud.agents import OpenAIChatAgent
-from hud.datasets import load_tasks
+from env import env, init
 from openai import AsyncOpenAI
+from hud.agents import OpenAIChatAgent, create_agent
+from loop.multi_turn import multi_turn_run
+from server.tools.conversation import get_user_simulator
 
-from env import env
-from env import init
-
-# Use HUD inference gateway - see all models at https://hud.ai/models
-# Get API key from environment or HUD settings
+# Use HUD inference gateway
 api_key = os.getenv("HUD_API_KEY") or os.getenv("OPENAI_API_KEY")
 if not api_key:
     from hud.settings import settings
@@ -34,91 +32,35 @@ async def test_tools_standalone():
     print("=== Test 1: Standalone Tools ===")
 
     # Initialize environment
-    from env import init
     await init()
-
-    # Get tools (async method)
     tools_dict = await env.get_tools()
     tool_names = list(tools_dict.keys())
     print(f"Tools: {tool_names}")
     print(f"Total tools: {len(tools_dict)}")
 
-
-async def test_airline_scenario():
-    """Test airline scenario with manual OpenAI calls."""
-    print("\n=== Test 2: Airline Scenario (Manual Agent Loop) ===")
-
-    if not client:
-        print("Skipping: API key not set. Set HUD_API_KEY or OPENAI_API_KEY environment variable.")
-        return
-    await init()
-    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/airline/test10.json")
-    # Bind to local environment and run
-    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
-    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")
-        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
-
-
-async def test_retail_scenario():
-    """Test retail scenario with OpenAIChatAgent."""
-    print("\n=== Test 2: Retail Scenario 10 tasks ===")
-    await init()
-    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/retail/test10.json")
-    # Bind to local environment and run
-    bound_tasks = [env(t.scenario, **t.args) for t in tasks[9:]]
-    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")
-        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
-
-async def test_telecom_scenario():
-    """Test telecom scenario with OpenAIChatAgent."""
-    print("\n=== Test 4: Telecom Scenario 10 tasks (OpenAIChatAgent) ===")
-    await init()
-    tasks = load_tasks("/home/genteki/gentekis_document/hud/tai2-bench/make_data/datasets/telecom/test10.json")
-    # Bind to local environment and run
-    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
-    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")
-        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
-
-async def test_from_json():
-    """Load tasks from JSON and run locally."""
-    print("\n=== Test: Load from JSON ===")
-
-
-    # Initialize the environment first
-    await init()
-
-    tasks = load_tasks("local_tasks.json")
-
-    # Bind to local environment and run
-    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
-
-    async with hud.eval(bound_tasks) as ctx:
-        from hud.agents.claude import ClaudeAgent
-        agent = ClaudeAgent.create(
-            model="claude-haiku-4-5",
-        )
-        await multi_agent_loop(ctx, agent, max_steps=30)
-
-async def test_hud_run():
+async def test_telecom():
     print("\n=== Test: Load from JSON ===")
     # Initialize the environment first
     await init()
 
-    tasks = load_tasks("local_tasks.json")
+    task = env(
+        "tau2",
+        domain="telecom",
+        task_id="[service_issue]airplane_mode_on[PERSONA:None]",
+        task_split="small"  # Use tasks_small.json which is valid
+    )
 
     # Bind to local environment and run
-    bound_tasks = [env(t.scenario, **t.args) for t in tasks]
+    bound_tasks = [task]
 
-    async with hud.eval(bound_tasks,max_concurrent=1) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-5")
-        # from hud.agents.claude import ClaudeAgent
-        # agent = ClaudeAgent.create(
-        #     model="claude-haiku-4-5",
-        # )
-        await agent.run(ctx, max_steps=100)  # Match tau2-bench default
+    async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
+        agent = OpenAIChatAgent.create(model="gpt-4o")
+
+        # Get user simulator from tau2-bench
+        simulated_user = get_user_simulator()
+
+        # Use multi-turn conversation loop
+        await multi_turn_run(ctx, agent, simulated_user, max_steps=30)
 
 
 async def main():
@@ -138,23 +80,8 @@ async def main():
     from loguru import logger as tau2_logger
     tau2_logger.add(log_file, level="DEBUG", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}")
 
-    print("TAU2-Bench Environment - Local Test")
-    print("=" * 50)
-    print("Make sure the environment server is running:")
-    print("  ./hud-tau2/scripts/start_environment_server.sh")
-    print("=" * 50)
-    print(f"Logging to: {log_file}")
-    print("=" * 50)
-    print()
-
-    # Test loading from JSON (recommended)
-
-    # Or test individual scenarios:
     # await test_tools_standalone()
-    # await test_airline_scenario()
-    # await test_retail_scenario()
-    # await test_telecom_scenario()
-    await test_hud_run()
+    await test_telecom()
 
 if __name__ == "__main__":
     asyncio.run(main())
