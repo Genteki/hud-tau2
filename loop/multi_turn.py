@@ -14,6 +14,27 @@ logger = logging.getLogger(__name__)
 STOP_SIGNALS = ["###STOP###", "###TRANSFER###", "###OUT-OF-SCOPE###"]
 
 
+async def _initialize_agent_with_filters(agent: Any, ctx: EvalContext) -> None:
+    """Initialize agent and apply tool filtering if configured."""
+    if agent._initialized:
+        return
+
+    await agent._initialize_from_ctx(ctx)
+
+    # Apply allowed_tools filter if configured
+    if hasattr(agent.config, 'allowed_tools') and agent.config.allowed_tools:
+        agent._available_tools = [
+            t for t in agent._available_tools if t.name in agent.config.allowed_tools
+        ]
+        agent._tool_map = {t.name: t for t in agent._available_tools}
+        agent.console.info(
+            f"Filtered to {len(agent._available_tools)} tools: "
+            f"{', '.join(t.name for t in agent._available_tools)}"
+        )
+        # Re-trigger provider-specific tool conversion
+        agent._on_tools_ready()
+
+
 async def multi_turn_run(
     ctx: EvalContext,
     agent: Any,
@@ -25,8 +46,8 @@ async def multi_turn_run(
 
     This function implements a turn-based conversation loop:
     1. Agent acts (tool calls or message)
-    2. When agent stops calling tools, user simulator responds
-    3. Agent response is added to messages, loop continues
+    2. When agent stops calling tools, user agent responds
+    3. Both agents share the same conversation history
 
     The loop terminates when detecting conversation signals from tau2-bench:
     - ###STOP### - Task complete, user is satisfied
@@ -35,8 +56,8 @@ async def multi_turn_run(
 
     Args:
         ctx: EvalContext from hud.eval()
-        agent: MCPAgent instance to run
-        simulated_user: User simulator instance for generating responses
+        agent: MCPAgent instance (assistant agent)
+        simulated_user: MCPAgent instance (user agent)
         max_steps: Maximum number of agent steps
 
     Returns:
@@ -45,9 +66,15 @@ async def multi_turn_run(
     Usage:
         ```python
         async with hud.eval(task) as ctx:
-            agent = OpenAIChatAgent.create(model="gpt-4o")
-            user_sim = UserSimulator(...)
-            trace = await multi_turn_run(ctx, agent, user_sim, max_steps=30)
+            # Create assistant agent with agent tools
+            assistant = create_agent(model="gpt-4o", allowed_tools=agent_tool_names)
+
+            # Create user agent with user tools and user scenario prompt
+            user = create_agent(model="gpt-4o", system_prompt=user_prompt,
+                              allowed_tools=user_tool_names)
+
+            # Run multi-turn conversation
+            trace = await multi_turn_run(ctx, assistant, user, max_steps=30)
         ```
     """
     if not isinstance(ctx, EvalContext):
@@ -56,12 +83,13 @@ async def multi_turn_run(
     if not ctx.prompt:
         raise ValueError("ctx.prompt is not set - did the scenario setup run?")
 
-    # Store context for tool calls
+    # Store context for tool calls in both agents
     agent.ctx = ctx
+    simulated_user.ctx = ctx
 
-    # Initialize tools from context
-    if not agent._initialized:
-        await agent._initialize_from_ctx(ctx)
+    # Initialize both agents with context and apply tool filtering
+    await _initialize_agent_with_filters(agent, ctx)
+    await _initialize_agent_with_filters(simulated_user, ctx)
 
     try:
         # Run conversation loop
@@ -87,23 +115,23 @@ async def multi_turn_run(
     finally:
         # Cleanup auto-created resources
         await agent._cleanup()
+        await simulated_user._cleanup()
 
 
 async def _run_conversation_loop(
     agent, simulated_user, context: list[Any], *, max_steps: int = 100
 ) -> Trace:
     """
-    Core conversation loop with tau2-bench turn-based interaction.
+    Core conversation loop with HUD agent-based user simulation.
 
     This implements a turn-based conversation:
     1. Agent acts (tool calls or message)
-    2. When agent stops calling tools, user simulator responds
-    3. Agent response is added to messages, loop continues
+    2. When agent stops calling tools, user agent responds
+    3. Both agents share the same conversation history
     """
     final_response = None
     error = None
     messages: list[Any] = []
-    termination_reason = "AGENT_STOP"  # Track why conversation ended
 
     def check_for_stop_signal(text: str) -> bool:
         """Check if text contains a conversation stop signal."""
@@ -113,67 +141,51 @@ async def _run_conversation_loop(
                 return True
         return False
 
-    async def get_user_response(agent_message: str) -> str:
-        """Get user simulator response to agent's message.
+    async def get_user_response(shared_messages: list[Any]) -> str:
+        """Get user agent response using shared conversation history.
 
-        Handles user tool calls by executing them via HTTP and getting next response.
-        Uses tau2-bench's UserSimulator directly.
+        User agent sees the same chat history as the assistant agent,
+        EXCEPT the initial greeting instruction (which is only for the assistant).
+        User can call tools before responding.
         """
         try:
-            from datetime import datetime
+            # User agent gets system messages (with user scenario)
+            user_messages = await simulated_user.get_system_messages()
 
-            from server.state import get_tau2_task
-            from server.tools.conversation import (
-                execute_user_tool_via_http,
-                get_user_state,
-                set_user_state,
-            )
-            from tau2.data_model.message import AssistantMessage, MultiToolMessage
+            # Add only the conversation messages (skip initial greeting instruction)
+            # shared_messages contains: system + greeting instruction + conversation
+            # We skip the greeting instruction by only adding actual conversation turns
+            conversation_messages = shared_messages[len(await agent.get_system_messages()) + len(context):]
+            user_messages.extend(conversation_messages)
 
-            # Get tau2 task state
-            tau2_task = get_tau2_task()
+            # User can call tools and respond (max iterations to prevent infinite loops)
+            max_user_iterations = 6
+            for _ in range(max_user_iterations):
+                user_response_obj = await simulated_user.get_response(user_messages)
 
-            # Create agent message for tau2
-            agent_msg = AssistantMessage(
-                role="assistant",
-                content=agent_message,
-                cost=0.0,
-                timestamp=datetime.now().isoformat()
-            )
-            tau2_task.add_message(agent_msg)
+                # If user has tool calls, execute them
+                if user_response_obj.tool_calls:
+                    logger.info(f"User executing {len(user_response_obj.tool_calls)} tool(s)")
+                    user_tool_results = await simulated_user.call_tools(user_response_obj.tool_calls)
 
-            # Generate initial user response using tau2-bench's UserSimulator
-            user_state = get_user_state()
-            user_message, new_state = simulated_user.generate_next_message(
-                message=agent_msg, state=user_state
-            )
-            set_user_state(new_state)
-            tau2_task.add_message(user_message)
+                    # Format tool results and add to user's message history
+                    tool_messages = await simulated_user.format_tool_results(
+                        user_response_obj.tool_calls, user_tool_results
+                    )
+                    user_messages.extend(tool_messages)
 
-            # Handle user tool calls (user performs actions)
-            while user_message.is_tool_call():
-                logger.info(f"User executing {len(user_message.tool_calls)} tool(s)")
+                    # Continue to get text response after tools
+                    continue
+                else:
+                    # No tool calls - user has a text response
+                    return user_response_obj.content or ""
 
-                # Execute user tools via HTTP
-                tool_messages = []
-                for tool_call in user_message.tool_calls:
-                    tool_msg = execute_user_tool_via_http(tool_call)
-                    tool_messages.append(tool_msg)
-                    tau2_task.add_message(tool_msg)
-                    logger.info(f"  - {tool_call.name}({tool_call.arguments})")
+            # Max iterations reached - return last content
+            return user_response_obj.content or ""
 
-                # Get next user response after tool execution
-                multi_tool_msg = MultiToolMessage(role="tool", tool_messages=tool_messages)
-                user_state = get_user_state()
-                user_message, new_state = simulated_user.generate_next_message(
-                    message=multi_tool_msg, state=user_state
-                )
-                set_user_state(new_state)
-                tau2_task.add_message(user_message)
-
-            # Return user's text response
-            return user_message.content or ""
-
+        except asyncio.TimeoutError:
+            logger.error("User response timed out")
+            return "Sorry, I took too long to respond."
         except Exception as e:
             logger.error(f"Failed to get user response: {e}")
             import traceback
@@ -181,10 +193,11 @@ async def _run_conversation_loop(
             return f"Error getting user response: {e}"
 
     try:
-        # Start with system messages
+        # Start with system messages for assistant agent
         messages = await agent.get_system_messages()
 
-        # Add initial context
+        # Add initial context (greeting instruction) - ONLY for assistant agent
+        # User agent should not see this instruction
         messages.extend(await agent.format_message(context))
         agent.console.debug(f"Messages: {messages}")
 
@@ -231,8 +244,11 @@ async def _run_conversation_loop(
                             final_response = response
                             break
 
-                        # Get user response to agent's message
-                        user_response = await get_user_response(agent_message)
+                        # Add agent message to shared history
+                        messages.extend(await agent.format_message(agent_message))
+
+                        # Get user response using shared message history
+                        user_response = await get_user_response(messages)
 
                         # Check if user's response signals end
                         if check_for_stop_signal(user_response):
@@ -242,7 +258,7 @@ async def _run_conversation_loop(
 
                         agent.console.info(f"[bold green]User:[/bold green] {user_response}")
 
-                        # Add user response to messages
+                        # Add user response to shared messages
                         messages.extend(await agent.format_message(user_response))
 
                         # Increment step count after non-tool exchange (matches tau2-bench)
@@ -250,7 +266,6 @@ async def _run_conversation_loop(
 
                 else:
                     # No tool calls - agent sent a message to user
-                    # Get user simulator response
                     agent_message = response.content or ""
 
                     # Check if agent's message signals end
@@ -261,8 +276,11 @@ async def _run_conversation_loop(
 
                     agent.console.info(f"[bold cyan]Agent:[/bold cyan] {agent_message}")
 
-                    # Get user response
-                    user_response = await get_user_response(agent_message)
+                    # Add agent message to shared history
+                    messages.extend(await agent.format_message(agent_message))
+
+                    # Get user response using shared message history
+                    user_response = await get_user_response(messages)
 
                     # Check if user's response signals end
                     if check_for_stop_signal(user_response):
@@ -272,7 +290,7 @@ async def _run_conversation_loop(
 
                     agent.console.info(f"[bold green]User:[/bold green] {user_response}")
 
-                    # Add user response to messages and continue
+                    # Add user response to shared messages
                     messages.extend(await agent.format_message(user_response))
 
                     # Increment step count after non-tool exchange (matches tau2-bench)

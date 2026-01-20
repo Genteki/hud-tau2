@@ -180,7 +180,7 @@ class HTTPUserTool(BaseTool):
 
     async def __call__(self, **kwargs) -> list[TextContent]:
         """
-        Execute user tool via HTTP.
+        Execute user tool via HTTP and log to tau2_task message trajectory.
 
         Args:
             **kwargs: Tool parameters
@@ -189,12 +189,55 @@ class HTTPUserTool(BaseTool):
             List of TextContent with tool execution result
         """
         try:
-            # Execute user tool via HTTP
-            result = self.http_client.execute_user_tool(self.name, **kwargs)
+            # Get tau2_task for message logging
+            from server.state import get_tau2_task
+            from tau2.data_model.message import UserMessage, ToolMessage
+            from uuid import uuid4
 
-            # Format result as JSON string
-            import json
-            result_str = json.dumps(result, indent=2, ensure_ascii=False)
+            tau2_task = get_tau2_task()
+
+            # Create tool call object (following tau2-bench ToolCall structure)
+            from tau2.data_model.message import ToolCall
+            tool_call = ToolCall(
+                id=str(uuid4()),
+                name=self.name,
+                arguments=kwargs,
+                requestor="user",  # User tool - requestor is "user"
+            )
+
+            # Log UserMessage with tool call (user calling the tool)
+            user_msg = UserMessage(
+                role="user",
+                tool_calls=[tool_call],
+            )
+            tau2_task.add_message(user_msg)
+
+            # Execute user tool via HTTP
+            error = False
+            try:
+                result = self.http_client.execute_user_tool(self.name, **kwargs)
+                # Format result as JSON string
+                import json
+                if isinstance(result, str):
+                    result_str = result
+                else:
+                    result_str = json.dumps(result, ensure_ascii=False)
+
+                logger.debug(f"[RUNTIME-USER] Tool '{self.name}' with args {kwargs} returned: {result_str[:200]}")
+            except Exception as e:
+                result_str = f"Error: {e}"
+                error = True
+                logger.error(f"[RUNTIME-USER] Tool '{self.name}' failed: {e}")
+
+            # Log ToolMessage (environment response)
+            tool_msg = ToolMessage(
+                id=tool_call.id,
+                role="tool",
+                content=result_str,
+                requestor=tool_call.requestor,
+                error=error,
+            )
+            tau2_task.add_message(tool_msg)
 
             return [TextContent(type="text", text=result_str)]
 
@@ -250,7 +293,7 @@ def create_http_tools_from_server(max_retries=30, retry_delay=1.0):
 
     http_tools = {}
 
-    # Create HTTPTool instances for regular tools
+    # Create HTTPTool instances for agent tools
     # Skip send_message - we use turn-based conversation instead
     for tool_info in tools_data.get("tools", []):
         tool_name = tool_info["name"]
@@ -269,11 +312,23 @@ def create_http_tools_from_server(max_retries=30, retry_delay=1.0):
             tool_schema=tool_schema
         )
 
-    # Don't create HTTPUserTool instances - user tools are only for UserSimulator
-    # User tools are fetched separately in ConversationTool.initialize_global()
-    # and passed to the UserSimulator, not exposed to the agent
+    # Create HTTPUserTool instances for user tools
+    # These will be filtered per agent using allowed_tools
+    for tool_info in tools_data.get("user_tools", []):
+        tool_name = tool_info["name"]
+        tool_desc = tool_info["description"]
+        tool_schema = tool_info.get("parameters", {"type": "object", "properties": {}})
 
-    logger.info(f"Created {len(http_tools)} HTTP-based MCP tools from environment server")
+        http_tools[tool_name] = HTTPUserTool(
+            tool_name=tool_name,
+            tool_description=tool_desc,
+            tool_schema=tool_schema
+        )
+
+    agent_tool_count = len(tools_data.get("tools", [])) - 1  # -1 for send_message
+    user_tool_count = len(tools_data.get("user_tools", []))
+    logger.info(f"Created {len(http_tools)} HTTP-based MCP tools from environment server "
+                f"(agent: {agent_tool_count}, user: {user_tool_count})")
 
     # Update global registry
     global _http_tool_registry

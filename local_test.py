@@ -39,7 +39,7 @@ async def test_tools_standalone():
     print(f"Total tools: {len(tools_dict)}")
 
 async def test_telecom():
-    print("\n=== Test: Load from JSON ===")
+    print("\n=== Test: Multi-turn conversation with agent and user ===")
     # Initialize the environment first
     await init()
 
@@ -54,13 +54,31 @@ async def test_telecom():
     bound_tasks = [task]
 
     async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
-        agent = OpenAIChatAgent.create(model="gpt-4o")
+        # Get agent configurations from tau2_task (populated during scenario setup)
+        from server.state import get_tau2_task
+        from prompts.user_prompts import user_system_prompt
 
-        # Get user simulator from tau2-bench
-        simulated_user = get_user_simulator()
+        tau2_task = get_tau2_task()
+
+        # Create assistant agent with agent tools and policy
+        assistant_agent = OpenAIChatAgent.create(
+            model="gpt-5",
+            system_prompt=tau2_task.system_prompt,  # Includes policy
+            allowed_tools=tau2_task.agent_tool_names  # Only agent tools
+        )
+
+        # Create user agent with user tools and scenario instructions
+        user_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=user_system_prompt(
+                user_scenario=tau2_task.user_scenario,
+                has_tools=True
+            ),  # tau2 user simulation guidelines + scenario
+            allowed_tools=tau2_task.user_tool_names  # Only user tools
+        )
 
         # Use multi-turn conversation loop
-        await multi_turn_run(ctx, agent, simulated_user, max_steps=30)
+        await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
 
 
 async def main():

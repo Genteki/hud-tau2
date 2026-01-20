@@ -86,10 +86,28 @@ def register_tau2_scenarios(env):
 
             logger.info(f"Loaded {len(http_tools)} tools for domain '{domain}'")
 
-            # Initialize UserSimulator for conversation loop
-            from server.tools.conversation import initialize_user_simulator
-            initialize_user_simulator(tau2_task)
-            logger.info("Initialized UserSimulator for conversation loop")
+            # Store tool names for agent filtering
+            # This allows runner files to filter tools per agent (assistant vs user)
+            from server.tools.http_client import get_http_client
+            http_client = get_http_client()
+            tools_data = http_client.list_tools()
+
+            # Store tool names in tau2_task for access by agents
+            agent_tool_names = [t["name"] for t in tools_data.get("tools", []) if t["name"] != "send_message"]
+            user_tool_names = [t["name"] for t in tools_data.get("user_tools", [])]
+
+            tau2_task.agent_tool_names = agent_tool_names
+            tau2_task.user_tool_names = user_tool_names
+
+            # Also store user scenario for creating user agent
+            if tau2_task.task and tau2_task.task.user_scenario:
+                tau2_task.user_scenario = tau2_task.task.user_scenario
+                logger.info("User scenario stored for user agent creation")
+            else:
+                tau2_task.user_scenario = None
+                logger.warning("No user scenario found in task")
+
+            logger.info(f"Tool names stored - agent tools: {len(agent_tool_names)}, user tools: {len(user_tool_names)}")
 
         except Exception as e:
             logger.error(f"Setup failed: {e}")
@@ -109,7 +127,8 @@ def register_tau2_scenarios(env):
             policy = "No specific policy available."
 
         # System prompt with policy (matching tau2-bench's SYSTEM_PROMPT)
-        # Store in tau2_task so the conversation loop can set agent.system_prompt
+        # NOTE: System prompts are now set in create_agent() via local_test.py/remote_test.py
+        # Keeping this here for reference and storing in tau2_task for agent creation
         system_prompt = f"""<instructions>
 You are a customer service agent that helps the user according to the <policy> provided below.
 In each turn you can either:
@@ -125,7 +144,7 @@ Try to be helpful and always follow the policy.
 </policy>"""
 
         tau2_task.system_prompt = system_prompt
-        logger.info("Stored system prompt with policy in tau2_task")
+        logger.info("Stored system prompt with policy in tau2_task (used by create_agent)")
 
         # Initial user message (just the greeting, no policy)
         prompt = f"""Greet the customer with message: {initial_greeting}"""
