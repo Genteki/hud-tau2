@@ -5,7 +5,7 @@ to tau2-bench's UserSimulator system prompts.
 """
 
 from tau2.user.user_simulator import UserSimulator
-import tau2.user.user_simulator as us_module
+
 
 # System prompt template (matches tau2-bench's SYSTEM_PROMPT exactly)
 USER_SYSTEM_PROMPT = """
@@ -49,8 +49,9 @@ def user_system_prompt(user_scenario, user_tool_names=None) -> str:
     global_guidelines = sim.global_simulation_guidelines
 
     # Format instructions from user scenario
-    # This matches how tau2-bench's UserSimulator formats instructions
-    instructions = user_scenario.instructions
+    # Use str(user_scenario) to get the formatted string with BOTH persona and instructions
+    # This matches exactly how tau2-bench's UserSimulator formats the system prompt
+    instructions = str(user_scenario)
 
     # Build the system prompt using tau2's template
     system_prompt = USER_SYSTEM_PROMPT.format(
