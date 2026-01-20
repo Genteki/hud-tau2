@@ -83,6 +83,32 @@ async def multi_turn_run(
     if not ctx.prompt:
         raise ValueError("ctx.prompt is not set - did the scenario setup run?")
 
+    # Configure agents with system prompts and tools from tau2_task
+    # (populated during scenario setup)
+    from server.state import get_tau2_task
+    from prompts.user_prompts import user_system_prompt
+
+    tau2_task = get_tau2_task()
+
+    # Set agent system prompt and allowed_tools if not already set
+    if not hasattr(agent.config, 'system_prompt') or not agent.config.system_prompt:
+        agent.config.system_prompt = tau2_task.system_prompt
+        agent.system_prompt = tau2_task.system_prompt
+
+    if not hasattr(agent.config, 'allowed_tools') or not agent.config.allowed_tools:
+        agent.config.allowed_tools = tau2_task.agent_tool_names
+
+    # Set user agent system prompt and allowed_tools if not already set
+    if not hasattr(simulated_user.config, 'system_prompt') or not simulated_user.config.system_prompt:
+        simulated_user.config.system_prompt = user_system_prompt(
+            user_scenario=tau2_task.user_scenario,
+            user_tool_names=tau2_task.user_tool_names
+        )
+        simulated_user.system_prompt = simulated_user.config.system_prompt
+
+    if not hasattr(simulated_user.config, 'allowed_tools') or not simulated_user.config.allowed_tools:
+        simulated_user.config.allowed_tools = tau2_task.user_tool_names
+
     # Store context for tool calls in both agents
     agent.ctx = ctx
     simulated_user.ctx = ctx

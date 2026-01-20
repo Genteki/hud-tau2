@@ -8,8 +8,6 @@ import hud
 from hud.agents import create_agent
 from hud.datasets import load_tasks
 from loop.multi_turn import multi_turn_run
-from server.state import get_tau2_task
-from prompts.user_prompts import user_system_prompt
 
 
 async def main():
@@ -18,27 +16,14 @@ async def main():
     tasks = load_tasks(ds)
 
     async with hud.eval(tasks, max_concurrent=10) as ctx:
-        # Get agent configurations from tau2_task (populated during scenario setup)
-        tau2_task = get_tau2_task()
-
-        # Create assistant agent with agent tools and policy
-        assistant_agent = create_agent(
-            model=model,
-            system_prompt=tau2_task.system_prompt,  # Includes policy
-            allowed_tools=tau2_task.agent_tool_names  # Only agent tools
-        )
-
-        # Create user agent with user tools and scenario instructions
-        user_agent = create_agent(
-            model=model,
-            system_prompt=user_system_prompt(
-                user_scenario=tau2_task.user_scenario,
-                user_tool_names=tau2_task.user_tool_names  # Auto-determines has_tools
-            ),  # tau2 user simulation guidelines + scenario
-            allowed_tools=tau2_task.user_tool_names  # Only user tools
-        )
+        # Create agents with model only - tool filtering happens in multi_turn_run
+        # after scenario setup populates tau2_task
+        assistant_agent = create_agent(model=model)
+        user_agent = create_agent(model=model)
 
         # Run multi-turn conversation
+        # This will configure agents with proper system prompts and tools
+        # after scenario setup runs
         await multi_turn_run(
             ctx=ctx,
             agent=assistant_agent,
