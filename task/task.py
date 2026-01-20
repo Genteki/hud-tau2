@@ -21,6 +21,11 @@ class Tau2Task:
     solo_mode: bool = False
     system_prompt: Optional[str] = None  # System prompt with policy for agent
 
+    # Tool configuration for agents (set during scenario setup)
+    agent_tool_names: List[str] = field(default_factory=list)  # Tools available to assistant agent
+    user_tool_names: List[str] = field(default_factory=list)   # Tools available to user agent
+    user_scenario: Optional[Any] = None  # UserScenario object for user agent
+
     # Token usage tracking
     total_input_tokens: int = 0
     total_output_tokens: int = 0
@@ -114,5 +119,8 @@ class Tau2Task:
         self.messages = []
         self.solo_mode = False
         self.system_prompt = None
+        self.agent_tool_names = []
+        self.user_tool_names = []
+        self.user_scenario = None
         self.reset_tokens()
 
