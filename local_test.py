@@ -16,8 +16,6 @@ from env import env, init
 from openai import AsyncOpenAI
 from hud.agents import OpenAIChatAgent, create_agent
 from loop.multi_turn import multi_turn_run
-from loop.agent_config import configure_agents_for_tau2
-from server.tools.conversation import get_user_simulator
 
 # Use HUD inference gateway
 api_key = os.getenv("HUD_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -44,18 +42,42 @@ async def test_telecom():
     # Initialize the environment first
     await init()
 
+    domain = "telecom"
+    task_id = "[service_issue]airplane_mode_on[PERSONA:None]"
+    task_split = "small"
+
     task = env(
         "tau2",
-        domain="telecom",
-        task_id="[service_issue]airplane_mode_on[PERSONA:None]",
-        task_split="small"  # Use tasks_small.json which is valid
+        domain=domain,
+        task_id=task_id,
+        task_split=task_split
     )
     bound_tasks = [task]
 
     async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
-        assistant_agent = OpenAIChatAgent.create(model="gpt-4o")
-        user_agent = OpenAIChatAgent.create(model="gpt-4o")
-        await configure_agents_for_tau2(ctx, assistant_agent, user_agent)
+        # Get tau2 configuration - pass params explicitly to avoid parsing issues
+        from loop.agent_config import get_tau2_config
+        user_prompt, assistant_prompt, user_tools, assistant_tools = await get_tau2_config(
+            ctx, domain=domain, task_id=task_id, task_split=task_split
+        )
+        print("\n=== SYSTEM PROMPTS (telecom) ===")
+        # print("\n[ASSISTANT PROMPT]\n")
+        # print(assistant_prompt)
+        print("\n[USER PROMPT]\n")
+        print(user_prompt)
+
+        # Create agents with proper configuration
+        assistant_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=assistant_prompt,
+            allowed_tools=assistant_tools
+        )
+        user_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=user_prompt,
+            allowed_tools=user_tools
+        )
+
         await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
 
 async def test_airline():
@@ -63,18 +85,82 @@ async def test_airline():
     # Initialize the environment first
     await init()
 
+    domain = "airline"
+    task_id = "8"
+    task_split = "base"
+
     task = env(
         "tau2",
-        domain="airline",
-        task_id="1",
-        task_split="base"  # Use tasks_small.json which is valid
+        domain=domain,
+        task_id=task_id,
+        task_split=task_split
     )
     bound_tasks = [task]
 
     async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
-        assistant_agent = OpenAIChatAgent.create(model="gpt-4o")
-        user_agent = OpenAIChatAgent.create(model="gpt-4o")
-        await configure_agents_for_tau2(ctx, assistant_agent, user_agent)
+        # Get tau2 configuration - pass params explicitly to avoid parsing issues
+        from loop.agent_config import get_tau2_config
+        user_prompt, assistant_prompt, user_tools, assistant_tools = await get_tau2_config(
+            ctx, domain=domain, task_id=task_id, task_split=task_split
+        )
+        print("\n=== SYSTEM PROMPTS (airline) ===")
+        print("\n[ASSISTANT PROMPT]\n")
+        print(assistant_prompt)
+        print("\n[USER PROMPT]\n")
+        print(user_prompt)
+
+        # Create agents with proper configuration
+        assistant_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=assistant_prompt,
+            allowed_tools=assistant_tools
+        )
+        user_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=user_prompt,
+            allowed_tools=user_tools
+        )
+
+        await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
+
+
+async def test_retail():
+    print("\n=== Test: Multi-turn conversation with agent and user ===")
+    # Initialize the environment first
+    await init()
+
+    domain = "retail"
+    task_id = "1"
+    task_split = "base"
+
+    task = env("tau2", domain=domain, task_id=task_id, task_split=task_split)
+    bound_tasks = [task]
+
+    async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
+        # Get tau2 configuration - pass params explicitly to avoid parsing issues
+        from loop.agent_config import get_tau2_config
+
+        user_prompt, assistant_prompt, user_tools, assistant_tools = (
+            await get_tau2_config(
+                ctx, domain=domain, task_id=task_id, task_split=task_split
+            )
+        )
+        print("\n=== SYSTEM PROMPTS (retail) ===")
+        print("\n[ASSISTANT PROMPT]\n")
+        print(assistant_prompt)
+        print("\n[USER PROMPT]\n")
+        print(user_prompt)
+
+        # Create agents with proper configuration
+        assistant_agent = OpenAIChatAgent.create(
+            model="gpt-4o",
+            system_prompt=assistant_prompt,
+            allowed_tools=assistant_tools,
+        )
+        user_agent = OpenAIChatAgent.create(
+            model="gpt-4o", system_prompt=user_prompt, allowed_tools=user_tools
+        )
+
         await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
 
 
@@ -96,8 +182,9 @@ async def main():
     tau2_logger.add(log_file, level="DEBUG", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}")
 
     # await test_tools_standalone()
-    # await test_telecom()
-    await test_airline()
+    await test_telecom()
+    # await test_airline()
+    # await test_retail()
 
 if __name__ == "__main__":
     asyncio.run(main())

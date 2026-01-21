@@ -12,3 +12,4 @@ hud.locl.yaml
 .pytest_cache
 
 log
+*.log

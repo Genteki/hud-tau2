@@ -1,6 +1,7 @@
 """Multi-turn TAU-Bench agent interaction"""
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -35,6 +36,91 @@ async def _initialize_agent_with_filters(agent: Any, ctx: EvalContext) -> None:
         )
         # Re-trigger provider-specific tool conversion
         agent._on_tools_ready()
+
+
+def _uses_role_dict_format(messages: list[Any]) -> bool:
+    """Best-effort check for OpenAI-style role dict messages."""
+    return bool(messages) and isinstance(messages[0], dict) and "role" in messages[0]
+
+
+def _tool_calls_to_openai(tool_calls: list[Any]) -> list[dict[str, Any]]:
+    """Convert MCPToolCall list to OpenAI tool_calls format."""
+    formatted = []
+    for call in tool_calls:
+        formatted.append(
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {
+                    "name": call.name,
+                    "arguments": json.dumps(call.arguments or {}),
+                },
+            }
+        )
+    return formatted
+
+
+def _ensure_openai_tool_messages(
+    tool_calls: list[Any], tool_messages: list[Any]
+) -> list[Any]:
+    """Ensure every tool_call_id has a corresponding tool message."""
+    existing_ids = {
+        msg.get("tool_call_id")
+        for msg in tool_messages
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    }
+    for call in tool_calls:
+        if call.id not in existing_ids:
+            tool_messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": "Tool executed successfully",
+                }
+            )
+    return tool_messages
+
+
+def _repair_openai_tool_history(messages: list[Any]) -> list[Any]:
+    """Ensure tool messages immediately follow assistant tool_calls."""
+    if not _uses_role_dict_format(messages):
+        return messages
+
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("tool_calls"):
+            tool_calls = msg.get("tool_calls") or []
+            pending = {tc.get("id") for tc in tool_calls if isinstance(tc, dict) and tc.get("id")}
+            j = i + 1
+            while j < len(messages):
+                next_msg = messages[j]
+                if isinstance(next_msg, dict) and next_msg.get("role") == "tool":
+                    tool_call_id = next_msg.get("tool_call_id")
+                    if tool_call_id in pending:
+                        pending.remove(tool_call_id)
+                    j += 1
+                    continue
+                break
+            if pending:
+                insert_at = j
+                for tool_call_id in pending:
+                    messages.insert(
+                        insert_at,
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "content": "Tool executed successfully",
+                        },
+                    )
+                    insert_at += 1
+                i = insert_at
+            else:
+                i = j
+        else:
+            i += 1
+
+    return messages
 
 
 async def multi_turn_run(
@@ -136,7 +222,8 @@ async def _run_conversation_loop(
     """
     final_response = None
     error = None
-    messages: list[Any] = []
+    agent_messages: list[Any] = []
+    user_messages: list[Any] = []
 
     def check_for_stop_signal(text: str) -> bool:
         """Check if text contains a conversation stop signal."""
@@ -146,44 +233,61 @@ async def _run_conversation_loop(
                 return True
         return False
 
-    async def get_user_response(shared_messages: list[Any]) -> str:
+    async def get_user_response() -> str:
         """Get user agent response using shared conversation history.
 
-        User agent sees the same chat history as the assistant agent,
+        User agent sees the same chat history as the assistant agent (roles flipped),
         EXCEPT the initial greeting instruction (which is only for the assistant).
         User can call tools before responding.
         """
         try:
-            # User agent gets system messages (with user scenario)
-            user_messages = await simulated_user.get_system_messages()
-
-            # Add only the conversation messages (skip initial greeting instruction)
-            # shared_messages contains: system + greeting instruction + conversation
-            # We skip the greeting instruction by only adding actual conversation turns
-            conversation_messages = shared_messages[len(await agent.get_system_messages()) + len(context):]
-            user_messages.extend(conversation_messages)
-
             # User can call tools and respond (max iterations to prevent infinite loops)
             max_user_iterations = 6
             for _ in range(max_user_iterations):
+                _repair_openai_tool_history(user_messages)
                 user_response_obj = await simulated_user.get_response(user_messages)
 
                 # If user has tool calls, execute them
                 if user_response_obj.tool_calls:
+                    if user_response_obj.content:
+                        # Some providers include content with tool calls; ignore text and continue.
+                        logger.warning(
+                            "User returned both text and tool calls; ignoring text content"
+                        )
+
                     logger.info(f"User executing {len(user_response_obj.tool_calls)} tool(s)")
+
+                    if _uses_role_dict_format(user_messages):
+                        user_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": _tool_calls_to_openai(user_response_obj.tool_calls),
+                            }
+                        )
+
                     user_tool_results = await simulated_user.call_tools(user_response_obj.tool_calls)
 
                     # Format tool results and add to user's message history
                     tool_messages = await simulated_user.format_tool_results(
                         user_response_obj.tool_calls, user_tool_results
                     )
+                    if _uses_role_dict_format(user_messages):
+                        tool_messages = _ensure_openai_tool_messages(
+                            user_response_obj.tool_calls, tool_messages
+                        )
                     user_messages.extend(tool_messages)
 
                     # Continue to get text response after tools
                     continue
                 else:
                     # No tool calls - user has a text response
-                    return user_response_obj.content or ""
+                    user_text = user_response_obj.content or ""
+                    if _uses_role_dict_format(user_messages):
+                        user_messages.append({"role": "assistant", "content": user_text})
+                    else:
+                        user_messages.extend(await simulated_user.format_message(user_text))
+                    return user_text
 
             # Max iterations reached - return last content
             return user_response_obj.content or ""
@@ -198,13 +302,34 @@ async def _run_conversation_loop(
             return f"Error getting user response: {e}"
 
     try:
-        # Start with system messages for assistant agent
-        messages = await agent.get_system_messages()
+        # Start with system messages for assistant and user agents
+        agent_messages = await agent.get_system_messages()
+        user_messages = await simulated_user.get_system_messages()
+        agent_uses_roles = _uses_role_dict_format(agent_messages)
+        user_uses_roles = _uses_role_dict_format(user_messages)
 
         # Add initial context (greeting instruction) - ONLY for assistant agent
         # User agent should not see this instruction
-        messages.extend(await agent.format_message(context))
-        agent.console.debug(f"Messages: {messages}")
+        agent_messages.extend(await agent.format_message(context))
+        agent.console.debug(f"Agent messages: {agent_messages}")
+
+        async def append_agent_message(role: str, content: str) -> None:
+            if agent_uses_roles:
+                agent_messages.append({"role": role, "content": content})
+            else:
+                agent_messages.extend(await agent.format_message(content))
+
+        async def append_user_message(role: str, content: str) -> None:
+            if user_uses_roles:
+                user_messages.append({"role": role, "content": content})
+            else:
+                user_messages.extend(await simulated_user.format_message(content))
+
+        async def append_conversation_message(role: str, content: str) -> None:
+            # Agent sees roles as-is; user sees roles flipped (matches tau2-bench)
+            await append_agent_message(role, content)
+            flipped_role = "user" if role == "assistant" else "assistant"
+            await append_user_message(flipped_role, content)
 
         step_count = 0
         iteration_count = 0  # Track total iterations
@@ -218,18 +343,37 @@ async def _run_conversation_loop(
 
             try:
                 # 1. Get model response
-                response = await agent.get_response(messages)
+                if agent_uses_roles:
+                    agent_messages = _repair_openai_tool_history(agent_messages)
+                response = await agent.get_response(agent_messages)
                 agent.console.debug(f"Agent:\n{response}")
 
                 # 2. Check if agent has tool calls
                 if response.tool_calls:
+                    if response.content:
+                        # Some providers include text with tool calls; ignore text and continue.
+                        agent.console.warning_log(
+                            "Agent returned both text and tool calls; ignoring text content"
+                        )
+
+                    if agent_uses_roles:
+                        agent_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": _tool_calls_to_openai(response.tool_calls),
+                            }
+                        )
+
                     # Execute tools
                     tool_calls = response.tool_calls
                     tool_results = await agent.call_tools(tool_calls)
 
                     # Format tool results and add to messages
                     tool_messages = await agent.format_tool_results(tool_calls, tool_results)
-                    messages.extend(tool_messages)
+                    if agent_uses_roles:
+                        tool_messages = _ensure_openai_tool_messages(tool_calls, tool_messages)
+                    agent_messages.extend(tool_messages)
 
                     # Show tool calls and results in compact one-line format
                     for call, result in zip(tool_calls, tool_results, strict=False):
@@ -237,37 +381,6 @@ async def _run_conversation_loop(
                         agent.console.info(f"{call}")
                         # One line for result
                         agent.console.info(f"{result}")
-
-                    # Check if agent included text with tool calls (like transfer message)
-                    if response.content:
-                        agent_message = response.content
-                        agent.console.info(f"[bold cyan]Agent (with tools):[/bold cyan] {agent_message}")
-
-                        # Check if agent's message signals end
-                        if check_for_stop_signal(agent_message):
-                            agent.console.info("Conversation ended by agent signal")
-                            final_response = response
-                            break
-
-                        # Add agent message to shared history
-                        messages.extend(await agent.format_message(agent_message))
-
-                        # Get user response using shared message history
-                        user_response = await get_user_response(messages)
-
-                        # Check if user's response signals end
-                        if check_for_stop_signal(user_response):
-                            agent.console.info("Conversation ended by user signal")
-                            final_response = response
-                            break
-
-                        agent.console.info(f"[bold green]User:[/bold green] {user_response}")
-
-                        # Add user response to shared messages
-                        messages.extend(await agent.format_message(user_response))
-
-                        # Increment step count after non-tool exchange (matches tau2-bench)
-                        step_count += 1
 
                 else:
                     # No tool calls - agent sent a message to user
@@ -282,10 +395,10 @@ async def _run_conversation_loop(
                     agent.console.info(f"[bold cyan]Agent:[/bold cyan] {agent_message}")
 
                     # Add agent message to shared history
-                    messages.extend(await agent.format_message(agent_message))
+                    await append_conversation_message("assistant", agent_message)
 
                     # Get user response using shared message history
-                    user_response = await get_user_response(messages)
+                    user_response = await get_user_response()
 
                     # Check if user's response signals end
                     if check_for_stop_signal(user_response):
@@ -296,7 +409,7 @@ async def _run_conversation_loop(
                     agent.console.info(f"[bold green]User:[/bold green] {user_response}")
 
                     # Add user response to shared messages
-                    messages.extend(await agent.format_message(user_response))
+                    await append_conversation_message("user", user_response)
 
                     # Increment step count after non-tool exchange (matches tau2-bench)
                     step_count += 1
@@ -328,7 +441,7 @@ async def _run_conversation_loop(
     trace_params = {
         "reward": 0.0,
         "done": True,
-        "messages": messages,
+        "messages": agent_messages,
         "content": final_response.content if final_response else error,
         "isError": is_error,
         "info": {"error": error} if error else {},
