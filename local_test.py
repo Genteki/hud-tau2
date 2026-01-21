@@ -16,6 +16,7 @@ from env import env, init
 from openai import AsyncOpenAI
 from hud.agents import OpenAIChatAgent, create_agent
 from loop.multi_turn import multi_turn_run
+from loop.agent_config import configure_agents_for_tau2
 from server.tools.conversation import get_user_simulator
 
 # Use HUD inference gateway
@@ -49,19 +50,31 @@ async def test_telecom():
         task_id="[service_issue]airplane_mode_on[PERSONA:None]",
         task_split="small"  # Use tasks_small.json which is valid
     )
-
-    # Bind to local environment and run
     bound_tasks = [task]
 
     async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
-        # Create agents with model only - tool filtering happens in multi_turn_run
-        # after scenario setup populates tau2_task
         assistant_agent = OpenAIChatAgent.create(model="gpt-4o")
         user_agent = OpenAIChatAgent.create(model="gpt-4o")
+        await configure_agents_for_tau2(ctx, assistant_agent, user_agent)
+        await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
 
-        # Run multi-turn conversation
-        # This will configure agents with proper system prompts and tools
-        # after scenario setup runs
+async def test_airline():
+    print("\n=== Test: Multi-turn conversation with agent and user ===")
+    # Initialize the environment first
+    await init()
+
+    task = env(
+        "tau2",
+        domain="airline",
+        task_id="1",
+        task_split="base"  # Use tasks_small.json which is valid
+    )
+    bound_tasks = [task]
+
+    async with hud.eval(bound_tasks, max_concurrent=1) as ctx:
+        assistant_agent = OpenAIChatAgent.create(model="gpt-4o")
+        user_agent = OpenAIChatAgent.create(model="gpt-4o")
+        await configure_agents_for_tau2(ctx, assistant_agent, user_agent)
         await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
 
 
@@ -83,7 +96,8 @@ async def main():
     tau2_logger.add(log_file, level="DEBUG", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}")
 
     # await test_tools_standalone()
-    await test_telecom()
+    # await test_telecom()
+    await test_airline()
 
 if __name__ == "__main__":
     asyncio.run(main())

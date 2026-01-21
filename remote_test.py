@@ -8,6 +8,7 @@ import hud
 from hud.agents import create_agent
 from hud.datasets import load_tasks
 from loop.multi_turn import multi_turn_run
+from loop.agent_config import configure_agents_for_tau2
 
 
 async def main():
@@ -15,15 +16,15 @@ async def main():
     model = "claude-haiku-4-5"
     tasks = load_tasks(ds)
 
-    async with hud.eval(tasks, max_concurrent=10) as ctx:
-        # Create agents with model only - tool filtering happens in multi_turn_run
-        # after scenario setup populates tau2_task
+    async with hud.eval(tasks[2:3], max_concurrent=1) as ctx:
+        # Create agents with model only
         assistant_agent = create_agent(model=model)
         user_agent = create_agent(model=model)
 
+        # Configure agents with tau2-specific system prompts and tool filters
+        await configure_agents_for_tau2(ctx, assistant_agent, user_agent)
+
         # Run multi-turn conversation
-        # This will configure agents with proper system prompts and tools
-        # after scenario setup runs
         await multi_turn_run(
             ctx=ctx,
             agent=assistant_agent,

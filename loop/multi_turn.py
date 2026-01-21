@@ -22,14 +22,16 @@ async def _initialize_agent_with_filters(agent: Any, ctx: EvalContext) -> None:
     await agent._initialize_from_ctx(ctx)
 
     # Apply allowed_tools filter if configured
-    if hasattr(agent.config, 'allowed_tools') and agent.config.allowed_tools:
+    # Note: We explicitly check 'is not None' because an empty list [] is a valid
+    # filter that should result in 0 tools (for domains with no user tools)
+    if hasattr(agent.config, 'allowed_tools') and agent.config.allowed_tools is not None:
         agent._available_tools = [
             t for t in agent._available_tools if t.name in agent.config.allowed_tools
         ]
         agent._tool_map = {t.name: t for t in agent._available_tools}
+        tool_names = ', '.join(t.name for t in agent._available_tools) if agent._available_tools else '(none)'
         agent.console.info(
-            f"Filtered to {len(agent._available_tools)} tools: "
-            f"{', '.join(t.name for t in agent._available_tools)}"
+            f"Filtered to {len(agent._available_tools)} tools: {tool_names}"
         )
         # Re-trigger provider-specific tool conversion
         agent._on_tools_ready()
@@ -83,31 +85,8 @@ async def multi_turn_run(
     if not ctx.prompt:
         raise ValueError("ctx.prompt is not set - did the scenario setup run?")
 
-    # Configure agents with system prompts and tools from tau2_task
-    # (populated during scenario setup)
-    from server.state import get_tau2_task
-    from prompts.user_prompts import user_system_prompt
-
-    tau2_task = get_tau2_task()
-
-    # Set agent system prompt and allowed_tools if not already set
-    if not hasattr(agent.config, 'system_prompt') or not agent.config.system_prompt:
-        agent.config.system_prompt = tau2_task.system_prompt
-        agent.system_prompt = tau2_task.system_prompt
-
-    if not hasattr(agent.config, 'allowed_tools') or not agent.config.allowed_tools:
-        agent.config.allowed_tools = tau2_task.agent_tool_names
-
-    # Set user agent system prompt and allowed_tools if not already set
-    if not hasattr(simulated_user.config, 'system_prompt') or not simulated_user.config.system_prompt:
-        simulated_user.config.system_prompt = user_system_prompt(
-            user_scenario=tau2_task.user_scenario,
-            user_tool_names=tau2_task.user_tool_names
-        )
-        simulated_user.system_prompt = simulated_user.config.system_prompt
-
-    if not hasattr(simulated_user.config, 'allowed_tools') or not simulated_user.config.allowed_tools:
-        simulated_user.config.allowed_tools = tau2_task.user_tool_names
+    # NOTE: Agents should be pre-configured with system_prompt and allowed_tools
+    # before calling this function. See loop/agent_config.py for helper functions.
 
     # Store context for tool calls in both agents
     agent.ctx = ctx
