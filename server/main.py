@@ -40,6 +40,10 @@ async def init():
     # Register the tool object (callable), not its FunctionTool wrapper.
     env.add_tool(_conversation_tool)
 
+    # Register message logging tool for container-side evaluation
+    from .tools.message_log import create_record_message_tool
+    env.add_tool(create_record_message_tool())
+
     # Load HTTP-based tools from environment server
     from .tools.http_tool import create_http_tools_from_server
 

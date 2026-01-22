@@ -117,7 +117,11 @@ async def multi_turn_run(
     try:
         # Run conversation loop
         result = await _run_conversation_loop(
-            agent, simulated_user, text_to_blocks(ctx.prompt), max_steps=max_steps
+            agent,
+            simulated_user,
+            text_to_blocks(ctx.prompt),
+            ctx=ctx,
+            max_steps=max_steps,
         )
 
         # Submit final answer to context (only if scenario is running)
@@ -142,7 +146,12 @@ async def multi_turn_run(
 
 
 async def _run_conversation_loop(
-    agent, simulated_user, context: list[Any], *, max_steps: int = 100
+    agent,
+    simulated_user,
+    context: list[Any],
+    *,
+    ctx: EvalContext,
+    max_steps: int = 100,
 ) -> Trace:
     """
     Core conversation loop with HUD agent-based user simulation.
@@ -190,12 +199,19 @@ async def _run_conversation_loop(
         async def append_user_message(role: str, content: str) -> None:
             user_messages.extend(await simulated_user.format_message(content))
 
+        async def _record_message(role: str, content: str) -> None:
+            try:
+                await ctx.call_tool("record_message", role=role, content=content)
+            except Exception as e:
+                logger.debug("record_message failed: %s", e)
+
         async def append_conversation_message(role: str, content: str) -> None:
             # Agent sees roles as-is; user sees roles flipped (matches tau2-bench)
             await append_agent_message(role, content)
             flipped_role = "user" if role == "assistant" else "assistant"
             await append_user_message(flipped_role, content)
             text_history.append({"role": role, "content": content})
+            await _record_message(role, content)
 
         async def get_text_response(agent_obj, messages, label: str) -> str:
             try:

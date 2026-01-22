@@ -212,12 +212,20 @@ async def get_tau2_config(
             connector.config.exclude = None
 
     await ctx.list_tools()
-    ctx_tool_names = [t.name for t in ctx.as_tools() if t.name != "send_message"]
+    ctx_tool_names = [
+        t.name
+        for t in ctx.as_tools()
+        if t.name not in {"send_message", "__record_message"}
+    ]
 
     user_tools = getattr(tau2_task, "user_tool_names", None) or []
     if not user_tools:
         user_tools = STATIC_USER_TOOLS_BY_DOMAIN.get(domain, [])
-    user_tools = [t for t in user_tools if t in ctx_tool_names and t != "transfer_to_human_agents"]
+    user_tools = [
+        t
+        for t in user_tools
+        if t in ctx_tool_names and t != "transfer_to_human_agents"
+    ]
 
     agent_tools = STATIC_AGENT_TOOLS_BY_DOMAIN.get(domain, [])
     agent_tools = [t for t in agent_tools if t in ctx_tool_names]
