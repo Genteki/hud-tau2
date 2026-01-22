@@ -53,7 +53,6 @@ async def get_tau2_config(
 ) -> Tuple[str, str, List[str], List[str]]:
     from prompts.assistant_prompts import assistant_system_prompt
     from prompts.user_prompts import user_system_prompt
-    from server.tools.http_client import get_http_client
     from tau2.registry import registry
 
     params = {**_extract_task_params(ctx)}
@@ -76,13 +75,7 @@ async def get_tau2_config(
     if tau2_task is None:
         raise ValueError(f"Task {task_id} not found in domain {domain}")
 
-    http_client = get_http_client()
-    try:
-        policy = http_client.get_policy()
-    except Exception:
-        policy = ""
-    if not policy or len(policy.strip()) < 50 or "no policy" in policy.lower() or not _policy_matches_domain(policy, domain):
-        policy = _load_policy_from_file(domain) or "No policy available"
+    policy = _load_policy_from_file(domain) or "No policy available"
 
     # Clear agent filters that can collapse tools
     if getattr(ctx, "_agent_include", None) is not None or getattr(ctx, "_agent_exclude", None) is not None:
@@ -93,24 +86,13 @@ async def get_tau2_config(
             connector.config.include = None
             connector.config.exclude = None
 
-    tools_data = http_client.list_tools()
-    agent_tools = [t["name"] for t in tools_data.get("tools", []) if t["name"] != "send_message"]
-    user_tools = [t["name"] for t in tools_data.get("user_tools", [])]
-    user_tools = [t for t in user_tools if t != "transfer_to_human_agents"]
-
-    if not user_tools:
-        try:
-            from server.state import get_tau2_task
-
-            state_user_tools = getattr(get_tau2_task(), "user_tool_names", None)
-            if state_user_tools:
-                user_tools = [t for t in state_user_tools if t != "transfer_to_human_agents"]
-        except Exception:
-            pass
-
     await ctx.list_tools()
     ctx_tool_names = [t.name for t in ctx.as_tools() if t.name != "send_message"]
-    agent_tools = [t for t in ctx_tool_names if t not in user_tools] or agent_tools
+
+    user_tools = getattr(tau2_task, "user_tool_names", None) or []
+    user_tools = [t for t in user_tools if t in ctx_tool_names and t != "transfer_to_human_agents"]
+
+    agent_tools = [t for t in ctx_tool_names if t not in user_tools]
 
     if not tau2_task.user_scenario:
         raise ValueError(f"Task {task_id} has no user_scenario")
