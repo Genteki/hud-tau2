@@ -111,7 +111,7 @@ async def test_airline():
 
         # Create agents with proper configuration
         assistant_agent = OpenAIChatAgent.create(
-            model="gpt-4o",
+            model="claude-haiku-4-5",
             system_prompt=assistant_prompt,
             allowed_tools=assistant_tools
         )
@@ -182,8 +182,8 @@ async def main():
     tau2_logger.add(log_file, level="DEBUG", format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}")
 
     # await test_tools_standalone()
-    await test_telecom()
-    # await test_airline()
+    # await test_telecom()
+    await test_airline()
     # await test_retail()
 
 if __name__ == "__main__":

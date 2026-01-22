@@ -19,15 +19,15 @@ logger.critical("[REMOTE_TEST] ===== REMOTE_TEST.PY STARTING =====")
 async def main():
     logger.critical("[REMOTE_TEST] main() function called")
     ds = "TAU2-Test"
-    assistant_model = "gpt-5"
+    assistant_model = "claude-haiku-4-5"
     user_model = "gpt-4o"
     tasks = load_tasks(ds)
 
-    async with hud.eval(tasks[10:20], max_concurrent=15) as ctx:
+    async with hud.eval(tasks, max_concurrent=15) as ctx:
         # Get tau2 configuration
         user_prompt, assistant_prompt, user_tools, assistant_tools = await get_tau2_config(ctx)
-
-        # Create agents with proper configuration
+        
+        # Create agents
         assistant_agent = create_agent(
             model=assistant_model,
             system_prompt=assistant_prompt,
@@ -44,7 +44,7 @@ async def main():
             ctx=ctx,
             agent=assistant_agent,
             simulated_user=user_agent,
-            max_steps=30
+            max_steps=100
         )
 
 

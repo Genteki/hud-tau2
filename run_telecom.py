@@ -10,16 +10,17 @@ from hud.datasets import load_tasks
 from loop.multi_turn import multi_turn_run
 from loop.agent_config import get_tau2_config
 
-ds = "TAU2-Telecom"
+ds = "TAU2-Airline"
 assistant_model = "gpt-5"
 user_model = "gpt-4o"
-
+max_concurrent = 30
+max_steps = 200
 
 async def main():
 
     tasks = load_tasks(ds)
 
-    async with hud.eval(tasks, max_concurrent=10) as ctx:
+    async with hud.eval(tasks, max_concurrent=max_concurrent) as ctx:
         # Get tau2 configuration
         user_prompt, assistant_prompt, user_tools, assistant_tools = (
             await get_tau2_config(ctx)
@@ -37,7 +38,7 @@ async def main():
 
         # Run multi-turn conversation
         await multi_turn_run(
-            ctx=ctx, agent=assistant_agent, simulated_user=user_agent, max_steps=100
+            ctx=ctx, agent=assistant_agent, simulated_user=user_agent, max_steps=max_steps
         )
 
 

@@ -147,7 +147,7 @@ Try to be helpful and always follow the policy.
         logger.info("Stored system prompt with policy in tau2_task (used by create_agent)")
 
         # Initial user message (just the greeting, no policy)
-        prompt = f"""Greet the customer with message: {initial_greeting}"""
+        prompt = f"""Greet the customer: {initial_greeting}"""
 
         # Yield the prompt and let the agent interact
         # The conversation loop will set agent.system_prompt from tau2_task.system_prompt
