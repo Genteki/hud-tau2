@@ -12,7 +12,7 @@ from loop.agent_config import get_tau2_config
 
 ds = "TAU2-Telecom-Test"
 assistant_model = "gpt-5"
-user_model = "gpt-4o"
+user_model = "gpt-5"
 # assistant_model = "claude-sonnet-4-5"
 # user_model = "claude-haiku-4-5"
 max_concurrent = 30

@@ -15,12 +15,12 @@ from loop.agent_config import get_tau2_config
 logger = logging.getLogger(__name__)
 logger.critical("[REMOTE_TEST] ===== REMOTE_TEST.PY STARTING =====")
 
+assistant_model = "gpt-5"
+user_model = "gpt-5"
 
 async def main():
     logger.critical("[REMOTE_TEST] main() function called")
     ds = "TAU2-Test"
-    assistant_model = "gpt-5"
-    user_model = "gpt-4o"
     tasks = load_tasks(ds)
 
     async with hud.eval(tasks, max_concurrent=30) as ctx:
@@ -56,4 +56,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

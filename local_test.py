@@ -32,6 +32,8 @@ gateway_openai = build_gateway_client("openai")
 
 init_env = cast(Callable[[], Awaitable[None]], init)
 
+assistant_model = "gpt-5"
+user_model = "gpt-4.1"
 
 async def test_tools_standalone():
     """Test environment tools directly."""
@@ -78,14 +80,14 @@ async def test_telecom():
         # logger.critical("[REMOTE_TEST] User prompt full=%r", user_prompt)
         # Create agents with proper configuration
         assistant_agent = OpenAIAgent.create(
-            model="gpt-5",
+            model=assistant_model,
             system_prompt=assistant_prompt,
             allowed_tools=assistant_tools,
             model_client=gateway_openai,
             validate_api_key=False,
         )
         user_agent = OpenAIAgent.create(
-            model="gpt-4o",
+            model=user_model,
             system_prompt=user_prompt,
             allowed_tools=user_tools,
             model_client=gateway_openai,
@@ -126,12 +128,12 @@ async def test_airline():
 
         # Create agents with proper configuration
         assistant_agent = create_agent(
-            model="claude-haiku-4-5",
+            model=assistant_model,
             system_prompt=assistant_prompt,
             allowed_tools=assistant_tools,
         )
         user_agent = OpenAIAgent.create(
-            model="gpt-4o",
+            model=user_model,
             system_prompt=user_prompt,
             allowed_tools=user_tools,
             model_client=gateway_openai,
@@ -177,12 +179,12 @@ async def test_retail():
 
         # Create agents with proper configuration
         assistant_agent = create_agent(
-            model="gpt-5",
+            model=assistant_model,
             system_prompt=assistant_prompt,
             allowed_tools=assistant_tools,
         )
         user_agent = create_agent(
-            model="gpt-4o",
+            model=user_model,
             system_prompt=user_prompt,
             allowed_tools=user_tools,
         )

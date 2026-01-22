@@ -12,7 +12,7 @@ from loop.agent_config import get_tau2_config
 
 ds = "TAU2-Airline"
 assistant_model = "gpt-5"
-user_model = "gpt-4o"
+user_model = "gpt-5"
 max_concurrent = 30
 max_steps = 200
 
