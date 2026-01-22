@@ -45,6 +45,107 @@ def _policy_matches_domain(policy: str, domain: str) -> bool:
     return f"{domain} agent policy" in policy
 
 
+STATIC_USER_TOOLS_BY_DOMAIN = {
+    "telecom": [
+        "check_status_bar",
+        "check_network_status",
+        "check_network_mode_preference",
+        "set_network_mode_preference",
+        "run_speed_test",
+        "toggle_airplane_mode",
+        "check_sim_status",
+        "reseat_sim_card",
+        "toggle_data",
+        "toggle_roaming",
+        "check_data_restriction_status",
+        "toggle_data_saver_mode",
+        "check_apn_settings",
+        "set_apn_settings",
+        "reset_apn_settings",
+        "check_wifi_status",
+        "toggle_wifi",
+        "check_wifi_calling_status",
+        "toggle_wifi_calling",
+        "check_vpn_status",
+        "connect_vpn",
+        "disconnect_vpn",
+        "check_installed_apps",
+        "check_app_status",
+        "check_app_permissions",
+        "grant_app_permission",
+        "can_send_mms",
+        "reboot_device",
+        "check_payment_request",
+        "make_payment",
+    ],
+    "telecom-workflow": [
+        "check_status_bar",
+        "check_network_status",
+        "check_network_mode_preference",
+        "set_network_mode_preference",
+        "run_speed_test",
+        "toggle_airplane_mode",
+        "check_sim_status",
+        "reseat_sim_card",
+        "toggle_data",
+        "toggle_roaming",
+        "check_data_restriction_status",
+        "toggle_data_saver_mode",
+        "check_apn_settings",
+        "set_apn_settings",
+        "reset_apn_settings",
+        "check_wifi_status",
+        "toggle_wifi",
+        "check_wifi_calling_status",
+        "toggle_wifi_calling",
+        "check_vpn_status",
+        "connect_vpn",
+        "disconnect_vpn",
+        "check_installed_apps",
+        "check_app_status",
+        "check_app_permissions",
+        "grant_app_permission",
+        "can_send_mms",
+        "reboot_device",
+        "check_payment_request",
+        "make_payment",
+    ],
+}
+
+STATIC_AGENT_TOOLS_BY_DOMAIN = {
+    "telecom": [
+        "get_customer_by_phone",
+        "get_customer_by_id",
+        "get_customer_by_name",
+        "get_details_by_id",
+        "suspend_line",
+        "resume_line",
+        "get_bills_for_customer",
+        "send_payment_request",
+        "get_data_usage",
+        "enable_roaming",
+        "disable_roaming",
+        "refuel_data",
+        "transfer_to_human_agents",
+    ],
+    "telecom-workflow": [
+        "get_customer_by_phone",
+        "get_customer_by_id",
+        "get_customer_by_name",
+        "get_details_by_id",
+        "suspend_line",
+        "resume_line",
+        "get_bills_for_customer",
+        "send_payment_request",
+        "get_data_usage",
+        "enable_roaming",
+        "disable_roaming",
+        "refuel_data",
+        "transfer_to_human_agents",
+    ],
+}
+
+
 async def get_tau2_config(
     ctx: EvalContext,
     domain: str | None = None,
@@ -90,9 +191,14 @@ async def get_tau2_config(
     ctx_tool_names = [t.name for t in ctx.as_tools() if t.name != "send_message"]
 
     user_tools = getattr(tau2_task, "user_tool_names", None) or []
+    if not user_tools:
+        user_tools = STATIC_USER_TOOLS_BY_DOMAIN.get(domain, [])
     user_tools = [t for t in user_tools if t in ctx_tool_names and t != "transfer_to_human_agents"]
 
-    agent_tools = [t for t in ctx_tool_names if t not in user_tools]
+    agent_tools = STATIC_AGENT_TOOLS_BY_DOMAIN.get(domain, [])
+    agent_tools = [t for t in agent_tools if t in ctx_tool_names]
+    if not agent_tools:
+        agent_tools = [t for t in ctx_tool_names if t not in user_tools]
 
     if not tau2_task.user_scenario:
         raise ValueError(f"Task {task_id} has no user_scenario")
