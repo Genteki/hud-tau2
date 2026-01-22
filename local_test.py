@@ -33,7 +33,7 @@ gateway_openai = build_gateway_client("openai")
 init_env = cast(Callable[[], Awaitable[None]], init)
 
 assistant_model = "gpt-5"
-user_model = "gpt-4.1"
+user_model = "gpt-5"
 
 async def test_tools_standalone():
     """Test environment tools directly."""
