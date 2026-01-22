@@ -11,28 +11,43 @@ logger = logging.getLogger(__name__)
 
 
 class RecordMessageTool(BaseTool):
-    """Append a text message to tau2_task for evaluation."""
+    """Append conversation messages to tau2_task for evaluation."""
 
     def __init__(self) -> None:
         super().__init__(
             env=None,
-            name="__record_message",
+            name="record_message",
             description=(
                 "Record a user/assistant text message in the tau2 task history."
             ),
         )
 
-    async def __call__(self, role: str, content: str) -> list[TextContent]:
+    async def __call__(self, conversation) -> list[TextContent]:
         try:
             tau2_task = get_tau2_task()
-            timestamp = datetime.now().isoformat()
-            if role == "assistant":
-                msg = AssistantMessage(role="assistant", content=content, timestamp=timestamp)
-            elif role == "user":
-                msg = UserMessage(role="user", content=content, timestamp=timestamp)
-            else:
-                return [TextContent(type="text", text="Error: role must be 'assistant' or 'user'")]
-            tau2_task.add_message(msg)
+            if isinstance(conversation, str):
+                import json
+
+                conversation = json.loads(conversation)
+            if not isinstance(conversation, list):
+                return [TextContent(type="text", text="Error: conversation must be a list")]
+            for item in conversation:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get("role")
+                content = item.get("content")
+                if not role or content is None:
+                    continue
+                timestamp = datetime.now().isoformat()
+                if role == "assistant":
+                    msg = AssistantMessage(
+                        role="assistant", content=content, timestamp=timestamp
+                    )
+                elif role == "user":
+                    msg = UserMessage(role="user", content=content, timestamp=timestamp)
+                else:
+                    continue
+                tau2_task.add_message(msg)
             return [TextContent(type="text", text="ok")]
         except Exception as e:
             logger.error("record_message failed: %s", e)

@@ -10,6 +10,7 @@ import logging
 import sys
 
 from hud import Environment
+from server.tools.message_log import create_record_message_tool
 
 # Configure Python's standard logging to stderr (MCP uses stdout for communication)
 # Only configure if not already configured (don't override test script settings)
@@ -59,6 +60,8 @@ async def init():
     from server.evaluate import evaluate
     env.mount(setup)
     env.mount(evaluate)
+    env.add_tool(create_record_message_tool())
+    
 
     # Register scenarios
     from server.scenarios import register_tau2_scenarios

@@ -55,10 +55,10 @@ def user_system_prompt(user_scenario, user_tool_names=None) -> str:
     # This matches exactly how tau2-bench's UserSimulator formats the system prompt
     instructions = str(user_scenario)
 
-    logger.info(f"[USER_PROMPT] Building user system prompt")
-    logger.info(f"[USER_PROMPT] has_tools={has_tools}, user_tool_names={user_tool_names}")
-    logger.info(f"[USER_PROMPT] user_scenario type: {type(user_scenario).__name__}")
-    logger.info(f"[USER_PROMPT] Instructions (first 200 chars): {instructions[:200]}")
+    # logger.info(f"[USER_PROMPT] Building user system prompt")
+    # logger.info(f"[USER_PROMPT] has_tools={has_tools}, user_tool_names={user_tool_names}")
+    # logger.info(f"[USER_PROMPT] user_scenario type: {type(user_scenario).__name__}")
+    # logger.info(f"[USER_PROMPT] Instructions (first 200 chars): {instructions[:200]}")
 
     # Build the system prompt using tau2's template
     system_prompt = USER_SYSTEM_PROMPT.format(
@@ -66,6 +66,6 @@ def user_system_prompt(user_scenario, user_tool_names=None) -> str:
         instructions=instructions,
     )
 
-    logger.info(f"[USER_PROMPT] System prompt length: {len(system_prompt)} chars")
+    # logger.info(f"[USER_PROMPT] System prompt length: {len(system_prompt)} chars")
 
     return system_prompt
