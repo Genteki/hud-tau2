@@ -10,7 +10,7 @@ from hud.datasets import load_tasks
 from loop.multi_turn import multi_turn_run
 from loop.agent_config import get_tau2_config
 
-ds = "TAU2-Airline"
+ds = "TAU2-Retail"
 assistant_model = "gpt-5"
 user_model = "gpt-4o"
 max_concurrent = 30
