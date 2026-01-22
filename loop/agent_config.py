@@ -32,7 +32,31 @@ def _load_policy_from_file(domain: str) -> str | None:
         elif domain == "retail":
             from tau2.domains.retail.utils import RETAIL_POLICY_PATH as path
         elif domain == "telecom":
-            from tau2.domains.telecom.utils import TELECOM_MAIN_POLICY_PATH as path
+            from tau2.domains.telecom.utils import (
+                TELECOM_MAIN_POLICY_PATH,
+                TELECOM_TECH_SUPPORT_POLICY_MANUAL_PATH,
+            )
+            main_policy = (
+                TELECOM_MAIN_POLICY_PATH.read_text(encoding="utf-8")
+                if isinstance(TELECOM_MAIN_POLICY_PATH, Path)
+                and TELECOM_MAIN_POLICY_PATH.exists()
+                else ""
+            )
+            tech_policy = (
+                TELECOM_TECH_SUPPORT_POLICY_MANUAL_PATH.read_text(encoding="utf-8")
+                if isinstance(TELECOM_TECH_SUPPORT_POLICY_MANUAL_PATH, Path)
+                and TELECOM_TECH_SUPPORT_POLICY_MANUAL_PATH.exists()
+                else ""
+            )
+            combined_parts = []
+            if main_policy:
+                combined_parts.append(f"<main_policy>\n{main_policy}\n</main_policy>")
+            if tech_policy:
+                combined_parts.append(
+                    f"<tech_support_policy>\n{tech_policy}\n</tech_support_policy>"
+                )
+            combined = "\n".join(combined_parts)
+            return combined or None
         else:
             return None
         return path.read_text(encoding="utf-8") if isinstance(path, Path) and path.exists() else None
