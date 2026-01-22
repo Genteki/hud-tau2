@@ -212,25 +212,38 @@ async def get_tau2_config(
             connector.config.exclude = None
 
     await ctx.list_tools()
-    ctx_tool_names = [
-        t.name
-        for t in ctx.as_tools()
-        if t.name not in {"send_message", "__record_message"}
-    ]
+    ctx_tool_names = [t.name for t in ctx.as_tools()]
+    reserved_tools = {"send_message", "record_message"}
 
-    user_tools = getattr(tau2_task, "user_tool_names", None) or []
+    state_user_tools: list[str] = []
+    state_agent_tools: list[str] = []
+    try:
+        from server.state import get_tau2_task
+
+        state_task = get_tau2_task()
+        state_user_tools = list(getattr(state_task, "user_tool_names", None) or [])
+        state_agent_tools = list(getattr(state_task, "agent_tool_names", None) or [])
+    except Exception:
+        pass
+
+    user_tools = state_user_tools or getattr(tau2_task, "user_tool_names", None) or []
     if not user_tools:
         user_tools = STATIC_USER_TOOLS_BY_DOMAIN.get(domain, [])
     user_tools = [
         t
         for t in user_tools
-        if t in ctx_tool_names and t != "transfer_to_human_agents"
+        if t in ctx_tool_names
+        and t not in {"transfer_to_human_agents", *reserved_tools}
     ]
 
-    agent_tools = STATIC_AGENT_TOOLS_BY_DOMAIN.get(domain, [])
-    agent_tools = [t for t in agent_tools if t in ctx_tool_names]
+    agent_tools = state_agent_tools or STATIC_AGENT_TOOLS_BY_DOMAIN.get(domain, [])
+    agent_tools = [
+        t for t in agent_tools if t in ctx_tool_names and t not in reserved_tools
+    ]
     if not agent_tools:
-        agent_tools = [t for t in ctx_tool_names if t not in user_tools]
+        agent_tools = [
+            t for t in ctx_tool_names if t not in user_tools and t not in reserved_tools
+        ]
 
     if not tau2_task.user_scenario:
         raise ValueError(f"Task {task_id} has no user_scenario")

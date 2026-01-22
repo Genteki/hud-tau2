@@ -38,7 +38,8 @@ async def main():
             system_prompt=user_prompt,
             allowed_tools=user_tools,
         )
-
+        setattr(assistant_agent, "temperature", 0.0)
+        setattr(user_agent, "temperature", 0.0)
         # Run multi-turn conversation
         await multi_turn_run(
             ctx=ctx, agent=assistant_agent, simulated_user=user_agent, max_steps=max_steps

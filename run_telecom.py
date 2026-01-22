@@ -10,9 +10,11 @@ from hud.datasets import load_tasks
 from loop.multi_turn import multi_turn_run
 from loop.agent_config import get_tau2_config
 
-ds = "TAU2-Telecom"
+ds = "TAU2-Telecom-Test"
 assistant_model = "gpt-5"
 user_model = "gpt-4o"
+# assistant_model = "claude-sonnet-4-5"
+# user_model = "claude-haiku-4-5"
 max_concurrent = 30
 max_steps = 200
 
@@ -37,7 +39,8 @@ async def main():
             system_prompt=user_prompt,
             allowed_tools=user_tools,
         )
-
+        setattr(assistant_agent, "temperature", 0.0)
+        setattr(user_agent, "temperature", 0.0)
         # Run multi-turn conversation
         await multi_turn_run(
             ctx=ctx, agent=assistant_agent, simulated_user=user_agent, max_steps=max_steps

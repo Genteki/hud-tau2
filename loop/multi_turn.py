@@ -110,6 +110,13 @@ async def multi_turn_run(
     agent.ctx = ctx
     simulated_user.ctx = ctx
 
+    # Ensure message logging tool is available (for communicate checks)
+    await ctx.list_tools()
+    tool_names = {t.name for t in ctx.as_tools()}
+    has_record_message = "record_message" in tool_names
+    if not has_record_message:
+        logger.warning("Missing record_message tool; communicate checks may fail")
+
     # Initialize both agents with context and apply tool filtering
     await _initialize_agent_with_filters(agent, ctx)
     await _initialize_agent_with_filters(simulated_user, ctx)
@@ -121,6 +128,7 @@ async def multi_turn_run(
             simulated_user,
             text_to_blocks(ctx.prompt),
             ctx=ctx,
+            has_record_message=has_record_message,
             max_steps=max_steps,
         )
 
@@ -151,6 +159,7 @@ async def _run_conversation_loop(
     context: list[Any],
     *,
     ctx: EvalContext,
+    has_record_message: bool,
     max_steps: int = 100,
 ) -> Trace:
     """
@@ -199,19 +208,12 @@ async def _run_conversation_loop(
         async def append_user_message(role: str, content: str) -> None:
             user_messages.extend(await simulated_user.format_message(content))
 
-        async def _record_message(role: str, content: str) -> None:
-            try:
-                await ctx.call_tool("record_message", role=role, content=content)
-            except Exception as e:
-                logger.debug("record_message failed: %s", e)
-
         async def append_conversation_message(role: str, content: str) -> None:
             # Agent sees roles as-is; user sees roles flipped (matches tau2-bench)
             await append_agent_message(role, content)
             flipped_role = "user" if role == "assistant" else "assistant"
             await append_user_message(flipped_role, content)
             text_history.append({"role": role, "content": content})
-            await _record_message(role, content)
 
         async def get_text_response(agent_obj, messages, label: str) -> str:
             try:
@@ -281,6 +283,12 @@ async def _run_conversation_loop(
 
     # Build result
     is_error = error is not None
+
+    if has_record_message and text_history:
+        try:
+            await ctx.call_tool("record_message", conversation=text_history)
+        except Exception as e:
+            logger.error("record_message failed: %s", e)
 
     trace_params = {
         "reward": 0.0,
