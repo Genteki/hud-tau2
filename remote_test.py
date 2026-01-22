@@ -23,9 +23,15 @@ async def main():
     user_model = "gpt-4o"
     tasks = load_tasks(ds)
 
-    async with hud.eval(tasks, max_concurrent=15) as ctx:
+    async with hud.eval(tasks[0:1], max_concurrent=30) as ctx:
         # Get tau2 configuration
         user_prompt, assistant_prompt, user_tools, assistant_tools = await get_tau2_config(ctx)
+        # logger.critical("[REMOTE_TEST] Assistant prompt length=%d", len(assistant_prompt))
+        # logger.critical("[REMOTE_TEST] Assistant prompt preview=%r", assistant_prompt[:400])
+        # logger.critical("[REMOTE_TEST] Assistant prompt full=%r", assistant_prompt)
+        # logger.critical("[REMOTE_TEST] User prompt length=%d", len(user_prompt))
+        # logger.critical("[REMOTE_TEST] User prompt preview=%r", user_prompt[:400])
+        # logger.critical("[REMOTE_TEST] User prompt full=%r", user_prompt)
         
         # Create agents
         assistant_agent = create_agent(
@@ -36,7 +42,7 @@ async def main():
         user_agent = create_agent(
             model=user_model,
             system_prompt=user_prompt,
-            allowed_tools=user_tools
+            allowed_tools=user_tools,
         )
 
         # Run multi-turn conversation

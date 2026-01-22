@@ -34,7 +34,9 @@ async def main():
             allowed_tools=assistant_tools,
         )
         user_agent = create_agent(
-            model=user_model, system_prompt=user_prompt, allowed_tools=user_tools
+            model=user_model,
+            system_prompt=user_prompt,
+            allowed_tools=user_tools,
         )
 
         # Run multi-turn conversation

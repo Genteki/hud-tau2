@@ -49,10 +49,6 @@ async def get_response(
         response = await agent.get_response(conversation)
         if response.tool_calls:
             tool_steps += 1
-            if response.content:
-                logger.warning(
-                    "Agent returned both text and tool calls; ignoring text content"
-                )
             tool_results = await agent.call_tools(response.tool_calls)
             tool_messages = await agent.format_tool_results(
                 response.tool_calls, tool_results

@@ -93,7 +93,7 @@ async def test_airline():
         "tau2",
         domain=domain,
         task_id=task_id,
-        task_split=task_split
+        task_split=task_split,
     )
     bound_tasks = [task]
 
@@ -158,7 +158,7 @@ async def test_retail():
             allowed_tools=assistant_tools,
         )
         user_agent = OpenAIChatAgent.create(
-            model="gpt-4o", system_prompt=user_prompt, allowed_tools=user_tools
+            model="gpt-4o", system_prompt=user_prompt, allowed_tools=user_tools,
         )
 
         await multi_turn_run(ctx, assistant_agent, user_agent, max_steps=30)
